@@ -1,0 +1,29 @@
+µSync is a general purpose synchronization library, based on being small and
+lightweight. It requires very little RAM, and is quite fast.
+The following functions _must_ be implemented:
+ * malloc
+ * free
+ * memcmp
+ * memcpy
+ * memset
+
+At last measurement, minimum requirements were:
+8bytes of RAM per sync object. (12bytes on default config)
+1156 bytes for code. (Darwin x86)
+1600 bytes for code. (PPC)
+1760 bytes for code. (ARM)
+
+------------------------------------
+µSync is:
+Copyright (C)2009 SquidMan (Alex Marshall) <SquidMan72@gmail.com>
+Protected under the Lesser GNU GPL License
+
+------------------------------------
+Credits:
+#HACKERCHANNEL     -  For being awesome people.
+#X68000            -  More cool people.
+#todXXX            -  The sanctuary.
+##WiiXXXXZone      -  The lulz.
+Tatsujin           -  For supporting me in most everything I do.
+chalauxu           -  For being a good friend, and an anti-Twitter faggot.
+Apple              -  Created this Mac Mini I'm working on.

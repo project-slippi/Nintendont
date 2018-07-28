@@ -16,7 +16,7 @@ CFLAGS	:= -O3 -g -std=gnu89 -Wall $(MACHDEP)
 ARFLAGS	:= cru
 
 TARGET	:= libfatfs-ppc.a
-OBJECTS	:= ff-ppc.o ff_utf8-ppc.o option/ccsbcs-ppc.o
+OBJECTS	:= ff-ppc.o ff_utf8-ppc.o usync-ppc.o option/ccsbcs-ppc.o
 
 .PHONY: FORCE
 

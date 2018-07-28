@@ -274,3 +274,56 @@ DRESULT disk_flush (BYTE pdrv)
 
 	return RES_OK;
 }
+
+// Create a sync object
+static _SYNC_t sd_sobj = 0;
+static _SYNC_t usb_sobj = 0;
+int ff_cre_syncobj (BYTE vol, _SYNC_t* sobj)
+{
+	switch (vol)
+	{
+		case DEV_SD:
+			if (!sd_sobj)
+				sd_sobj = uSyncCreate();
+			*sobj = sd_sobj;
+			return 0;
+		case DEV_USB:
+			if (!usb_sobj)
+				usb_sobj = uSyncCreate();
+			*sobj = usb_sobj;
+			return 0;
+		default:
+			return -1;
+	}
+}
+
+// Lock sync object
+int ff_req_grant (_SYNC_t sobj)
+{
+	return uSyncObtain(sobj);
+}
+
+// Unlock sync object
+void ff_rel_grant (_SYNC_t sobj)
+{
+	uSyncRelease(sobj);
+}
+
+// Delete a sync object
+int ff_del_syncobj (_SYNC_t sobj){
+	if (sobj == sd_sobj)
+	{
+		int ret = uSyncDelete(sobj);
+		if (ret == 0)
+			sd_sobj = 0;
+		return ret;
+	}
+	if (sobj == usb_sobj)
+	{
+		int ret = uSyncDelete(sobj);
+		if (ret == 0)
+			usb_sobj = 0;
+		return ret;
+	}
+	return -1;
+}

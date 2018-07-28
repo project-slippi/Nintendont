@@ -25,7 +25,7 @@ CFLAGS	:= -mbig-endian -O3 -std=gnu89 -g -I. -Wall \
 ARFLAGS	:= cru
 
 TARGET	:= libfatfs-arm.a
-OBJECTS	:= ff-arm.o ff_utf8-arm.o option/ccsbcs-arm.o
+OBJECTS	:= ff-arm.o ff_utf8-arm.o usync-arm.o option/ccsbcs-arm.o
 
 .PHONY: FORCE
 

@@ -8,6 +8,7 @@
 /*-----------------------------------------------------------------------*/
 
 #include "diskio.h"
+#include "ff.h"
 #include "string.h"
 #include "debug.h"
 #include "Config.h"
@@ -238,4 +239,28 @@ void SetDiskFunctions(DWORD usb)
 		disk_read = disk_read_sd;
 		disk_write = disk_write_sd;
 	}
+}
+
+// Create a sync object
+int ff_cre_syncobj (BYTE vol, _SYNC_t* sobj)
+{
+	*sobj = uSyncCreate();
+	return 0;
+}
+
+// Lock sync object
+int ff_req_grant (_SYNC_t sobj)
+{
+	return uSyncObtain(sobj);
+}
+
+// Unlock sync object
+void ff_rel_grant (_SYNC_t sobj)
+{
+	uSyncRelease(sobj);
+}
+
+// Delete a sync object
+int ff_del_syncobj (_SYNC_t sobj){
+	return uSyncDelete(sobj);
 }
