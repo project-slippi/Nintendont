@@ -337,7 +337,7 @@ void handleCurrentBuffer() {
 
 	dbgprintf("Found a filled buffer. Len: %d | Command: %02X\r\n", currentBuffer->len, currentBuffer->buffer[0]);
 
-	DIFinishAsync(); //DONT ever try todo file i/o async
+	// DIFinishAsync(); //DONT ever try todo file i/o async
 	isWritingSlp = true;
 
 	static FIL file;

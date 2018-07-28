@@ -14,6 +14,7 @@
 #include "global.h"
 #include "Config.h"
 #include "ff.h"
+#include "exi.h"
 #include "usb_ogc.h"
 
 #include <limits.h>
@@ -283,17 +284,18 @@ int ff_cre_syncobj (BYTE vol, _SYNC_t* sobj)
 	switch (vol)
 	{
 		case DEV_SD:
-			if (!sd_sobj)
+			if (!sd_sobj) {
 				sd_sobj = uSyncCreate();
+			}
 			*sobj = sd_sobj;
-			return 0;
+			return 1;
 		case DEV_USB:
 			if (!usb_sobj)
 				usb_sobj = uSyncCreate();
 			*sobj = usb_sobj;
-			return 0;
+			return 1;
 		default:
-			return -1;
+			return 0;
 	}
 }
 
@@ -314,16 +316,16 @@ int ff_del_syncobj (_SYNC_t sobj){
 	if (sobj == sd_sobj)
 	{
 		int ret = uSyncDelete(sobj);
-		if (ret == 0)
+		if (ret)
 			sd_sobj = 0;
 		return ret;
 	}
 	if (sobj == usb_sobj)
 	{
 		int ret = uSyncDelete(sobj);
-		if (ret == 0)
+		if (ret)
 			usb_sobj = 0;
 		return ret;
 	}
-	return -1;
+	return 0;
 }

@@ -32,6 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdio.h>
 #include <unistd.h>
 
+#include "usync.h"
 #include "ff_utf8.h"
 #include "diskio.h"
 
@@ -178,6 +179,7 @@ static unsigned int font_ttf_size = 0;
 void Initialise(bool autoboot)
 {
 	int i;
+	uSyncInit();
 	AUDIO_Init(NULL);
 	DSP_Init();
 	AUDIO_StopDMA();

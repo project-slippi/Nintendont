@@ -917,7 +917,7 @@ u32 DIReadThread(void *arg)
 
 void DIFinishAsync()
 {
-	while(DiscCheckAsync() == false || isWritingSlp)
+	while(DiscCheckAsync() == false)
 	{
 		udelay(200); //wait for driver
 		CheckOSReport();

@@ -245,7 +245,7 @@ void SetDiskFunctions(DWORD usb)
 int ff_cre_syncobj (BYTE vol, _SYNC_t* sobj)
 {
 	*sobj = uSyncCreate();
-	return 0;
+	return (int)sobj;
 }
 
 // Lock sync object

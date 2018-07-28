@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Patch.h"
 #include "Slippi.h"
 
+#include "usync.h"
 #include "diskio.h"
 #include "usbstorage.h"
 #include "SDI.h"
@@ -104,6 +105,8 @@ int _main( int argc, char *argv[] )
 
 	thread_set_priority( 0, 0x50 );
 
+	uSyncInit();
+	
 	//Early HID for loader
 	HIDInit();
 
