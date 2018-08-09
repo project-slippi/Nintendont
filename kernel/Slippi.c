@@ -48,6 +48,9 @@ s32 lastFrame;
 // Payload Sizes
 static u16 payloadSizes[PAYLOAD_SIZES_BUFFER_SIZE];
 
+// For debugging
+static u32 minUnusedBuffers = BUFFER_ACCESS_COUNT + 1;
+
 void SlippiInit()
 {
 	// Set the commands payload to start at length 1. The reason for this
@@ -218,6 +221,32 @@ void completeFile(FIL *file, u32 writtenByteCount) {
 	f_sync(file);
 }
 
+void debugBufferUsage() {
+	u32 unusedBufferCount = 0;
+
+	// Check all of the ipcmessages to see how many buffers are currently unused
+	u32 i = 0;
+	while (i < BUFFER_ACCESS_COUNT) {
+		bufferAccess *currentBuffer = &accessManager[i];
+
+		if (currentBuffer->message.result != -1) {
+			unusedBufferCount += 1;
+		}
+
+		i += 1;
+	}
+
+	u32 modFrame = lastFrame % 600;
+	if (modFrame == 0) {
+		dbgprintf("Slippi: periodic update unused buffers: %d\r\n", unusedBufferCount);
+	}
+
+	if (unusedBufferCount < minUnusedBuffers) {
+		minUnusedBuffers = unusedBufferCount;
+		dbgprintf("Slippi: min unused buffers: %d\r\n", minUnusedBuffers);
+	}
+}
+
 void processPayload(u8 *payload, u32 length, u8 fileOption)
 {
 	bufferAccess *currentBuffer = &accessManager[writeBufferIndex];
@@ -289,6 +318,7 @@ void SlippiDmaWrite(const void *buf, u32 len) {
 		bufLoc += payloadLen + 1;
 	}
 
+	debugBufferUsage();
 }
 
 static void SlippiHandlerThread_Finish(struct ipcmessage *slippi_msg, int retval)
@@ -312,6 +342,7 @@ static u32 SlippiHandlerThread(void *arg) {
 			dbgprintf("Creating File...\r\n");
 			char* fileName = generateFileName(true);
 			FRESULT fileOpenResult = f_open_char(&file, fileName, FA_CREATE_ALWAYS | FA_WRITE);
+			dbgprintf("Done creating File...\r\n");
 
 			if (fileOpenResult != FR_OK) {
 				dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", fileName, fileOpenResult);
@@ -329,10 +360,17 @@ static u32 SlippiHandlerThread(void *arg) {
 		f_sync(&file);
 		writtenByteCount += wrote;
 
+		if (slippi_msg->ioctl.command == 1) {
+			dbgprintf("Done syncing first write...\r\n");
+		}
+
 		if (slippi_msg->ioctl.command == 2) {
 			dbgprintf("Completing File...\r\n");
 			completeFile(&file, writtenByteCount);
 			f_close(&file);
+
+			// For debugging
+			minUnusedBuffers = BUFFER_ACCESS_COUNT + 1;
 		}
 
 		SlippiHandlerThread_Finish(slippi_msg, 0);
