@@ -309,6 +309,7 @@ int _main( int argc, char *argv[] )
 	u32 PADTimer = Now;
 	u32 DiscChangeTimer = Now;
 	u32 ResetTimer = Now;
+	u32 SlippiShutdownTimer;
 	u32 InterruptTimer = Now;
 #ifdef PERFMON
 	u32 loopCnt = 0;
@@ -586,14 +587,32 @@ int _main( int argc, char *argv[] )
 			write32(RESET_STATUS, 0);
 			sync_after_write((void*)RESET_STATUS, 0x20);
 		}
+
 		if(reset_status == 0x7DEA || (read32(HW_GPIO_IN) & GPIO_POWER))
 		{
 			DIFinishAsync();
 			#ifdef PATCHALL
 			BTE_Shutdown();
 			#endif
+
+			SlippiShutdownTimer = read32(HW_TIMER);
+			if (UseNetwork == 1 && SlippiServerStarted == 1)
+			{
+				// Wait to transmit pending data
+				while (getRemainingBytes() != 0)
+				{
+					mdelay(200);
+
+					// If we've been waiting for > 3 seconds, just proceed
+					if (TimerDiffSeconds(SlippiShutdownTimer) > 3) 
+						break;
+				}
+				mdelay(200);
+				SlippiPowerHandler();
+			}
 			Shutdown();
 		}
+
 		#ifdef USE_OSREPORTDM
 		sync_before_read( (void*)0x1860, 0x20 );
 		if( read32(0x1860) != 0xdeadbeef )

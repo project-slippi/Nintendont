@@ -14,5 +14,7 @@
 s32 SlippiNetworkInit();
 void SlippiNetworkShutdown();
 void SlippiNetworkSetNewFile(const char* path);
+void SlippiPowerHandler(void);
+u64 getRemainingBytes(void);
 
 #endif

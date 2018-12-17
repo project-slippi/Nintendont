@@ -34,6 +34,12 @@ struct pollsd {
 #define POLLHUP				0x0010
 #define POLLNVAL			0x0020
 
+// shutdown arguments
+#define SHUT_RD		0
+#define SHUT_WR		1
+#define SHUT_RDWR	2
+
+
 struct setsockopt_params {
 	u32 socket;
 	u32 level;
@@ -150,5 +156,6 @@ s32 sendto(s32 fd, s32 socket, void *data, s32 len, u32 flags);
 s32 connect(s32 fd, s32 socket, struct address *addr);
 s32 recvfrom(s32 fd, s32 socket, void *mem, s32 len, u32 flags);
 s32 poll(s32 fd, struct pollsd *sds, s32 nsds, s32 timeout);
+s32 shutdown(s32 fd, s32 socket, u32 how);
 
 #endif

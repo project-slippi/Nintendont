@@ -155,6 +155,10 @@ s32 handleFileTransfer()
 	return 0;
 }
 
+/* Return the remaining number of bytes which need to be transmitted */
+extern volatile u64 SlipMemCursor;
+u64 getRemainingBytes(void) { return (SlipMemCursor - memReadPos); }
+
 /* Return the status of the networking thread. */
 int getConnectionStatus()
 {
@@ -218,9 +222,21 @@ void send_stack_dump(void)
 	}
 }
 
-static u32 crash_ts = 0;		// timer for crash handler 
+/* Emit a packet with "SHUT", signalling to some client that we're going to be
+ * handling a power button press from the user. The user might not receive this
+ * in some cases where connectivity issues might get in the way.
+ */
+void SlippiPowerHandler(void)
+{
+	int res;
+
+	res = sendto(top_fd, client_sock, "SHUT\x00", 5, 0);
+	close(top_fd, client_sock);
+	shutdown(top_fd, server_sock, SHUT_RDWR);
+}
+
+static u32 crash_ts = 0;		// timer for crash handler
 static u32 last_frame = 0;		// latest saved value
-static u8 crashmsg[] = "CRASHED\x00";
 int checkCrash(void)
 {
 	u32 current_frame;
@@ -233,7 +249,7 @@ int checkCrash(void)
 			return 0;
 		}
 		else if (current_frame == last_frame) {
-			sendto(top_fd, client_sock, crashmsg, sizeof(crashmsg), 0);
+			sendto(top_fd, client_sock, "CRASHED\x00", 8, 0);
 			return 1;
 		}
 	}

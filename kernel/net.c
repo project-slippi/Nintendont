@@ -348,3 +348,15 @@ s32 poll(s32 fd, struct pollsd *sds, s32 nsds, s32 timeout)
 	heap_free(0, psds);
 	return res;
 }
+
+s32 shutdown(s32 fd, s32 socket, u32 how)
+{
+	s32 res;
+	STACK_ALIGN(u32, params, 2, 32);
+
+	params[0] = socket;
+	params[1] = how;
+
+	res = IOS_Ioctl(fd, IOCTL_SO_SHUTDOWN, params, 8, 0, 0);
+	return res;
+}
