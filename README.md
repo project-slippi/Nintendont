@@ -12,7 +12,7 @@ You will need to install part of the devkitPro toolchain to build Nintendont. Vi
 ### Building on Windows
 To build on windows, you need to run the `Incremental Build.bat` file in the Nintendont root.
 
-**Troublshooting**
+#### Troubleshooting
 libwinpthread-1.dll error:
 ```
 make -C multidol
