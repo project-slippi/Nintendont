@@ -6,13 +6,23 @@ used for supporting Project Slippi. [See documentation in SLIPPI.md for more inf
 ### Nintendont
 A Wii Homebrew Project to play GC Games on Wii and vWii on Wii U
 
+### Build Requirements
+You will need to install part of the devkitPro toolchain to build Nintendont. Visit [the getting started page](https://devkitpro.org/wiki/Getting_Started) and find the instructions for your system. I recommend installing GBA, Wii, and GC packages. GBA is required to get `devkitARM` which isn't provided in the others. You effectively need `devkitARM` `devkitPPC` and `libogc`.
+
 ### Building on Windows
 To build on windows, you need to run the `Incremental Build.bat` file in the Nintendont root.
 
-**Notes**
-* The latest versions of devkitPro will not work for building Nintendont on Windows
-* As of this writing, it is still possible to find the old versions of devkitPPC, libogc, and devkitARM here: https://wii.leseratte10.de/devkitPro/
-* I recommend installing the latest devkitPro and then overwriting the above mentioned folders with the following versions: devkitARM r47, devkitPPC r29-1, libogc 1.8.16
+**Troublshooting**
+libwinpthread-1.dll error:
+```
+make -C multidol
+make[1]: Entering directory '/home/Jas/Documents/GitHub/Nintendont/multidol'
+ ASSEMBLE    crt0.S
+make[1]: *** [Makefile:36: crt0.o] Error 1
+make[1]: Leaving directory '/home/Jas/Documents/GitHub/Nintendont/multidol'
+make: *** [Makefile:34: multidol] Error 2
+```
+For some reason my devkitPro installer did not install things quite correctly for me. In order to fix the above error, you will need to go to your `devkitPPC/bin` directory, grab the file called `libwinpthread-1.dll`. You will need to copy this file to `devkitPPC/libexec/gcc/powerpc-eabi/8.2.0`. Repeat the same thing for the `devkitARM` directory, this should fix the issue.
 
 ### Features:
 * Works on Wii and Wii U (in vWii mode)
