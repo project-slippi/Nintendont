@@ -123,19 +123,30 @@ void listenForClient()
 		dbgprintf("Client connection detected\r\n");
 		ppc_msg("CLIENT OK\x00", 10);
 		client_alive_ts = read32(HW_TIMER);
+	} else {
+		// dbgprintf("Client sock accept failure: %d\r\n", client_sock);
+
+		// Close server socket such that it can be re-initialized
+		// TODO: When eth is disconnected, this still doesn't bring the connection back
+		// TODO: server_sock keeps getting a -39. Figure out how to solve this
+		close(top_fd, server_sock);
+		server_sock = -1;
 	}
 }
 
 void hangUpConnection() {
-	if (TimerDiffSeconds(client_alive_ts) >= CLIENT_TERMINATE_S) {
-		// Hang up client if failed to communicate for too long
-		dbgprintf("Client disconnect detected\r\n");
-		client_alive_ts = 0;
-		close(top_fd, client_sock);
-		client_sock = -1;
-		reset_broadcast_timer();
-		ppc_msg("CLIENT HUP\x00", 11);
-	}
+	// The error codes I have seen so far are -39 (ethernet disconnected) and -56 (client hung up)
+	// Currently disable this timer thing because it doesn't seem like we can recover from them
+	// anyway
+	// if (TimerDiffSeconds(client_alive_ts) >= CLIENT_TERMINATE_S) {
+
+	// Hang up client
+	dbgprintf("Client disconnect detected\r\n");
+	client_alive_ts = 0;
+	close(top_fd, client_sock);
+	client_sock = -1;
+	reset_broadcast_timer();
+	ppc_msg("CLIENT HUP\x00", 11);
 }
 
 /* handleFileTransfer()
@@ -247,6 +258,10 @@ s32 checkAlive(void)
 	else if (res <= 0)
 	{
 		hangUpConnection();
+
+		// We no longer always hang up the connection, sleep a little bit to prevent send
+		// attempts from sending too fast
+		mdelay(250);
 		return -1;
 	}
 

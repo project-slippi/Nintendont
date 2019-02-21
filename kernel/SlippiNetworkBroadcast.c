@@ -80,7 +80,10 @@ s32 startBroadcast()
 
 	// Start indicating our status to clients on the local network
 	res = connect(top_fd, discover_sock, (struct sockaddr *)&discover);
-	sendto(top_fd, discover_sock, &ready_msg, sizeof(ready_msg), 0);
+
+	// I commented this first sendTo because the desktop app was receiving the message from
+	// IP Address 0.0.0.0
+	//sendto(top_fd, discover_sock, &ready_msg, sizeof(ready_msg), 0);
 
 	// Initialize the broadcast message timer
 	broadcast_ts = read32(HW_TIMER);
