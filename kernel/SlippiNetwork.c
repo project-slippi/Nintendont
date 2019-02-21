@@ -21,6 +21,7 @@
 // it needed to be at 100 ms
 #define READ_BUF_SIZE 2500
 #define THREAD_CYCLE_TIME_MS 1
+#define CLIENT_TERMINATE_S 10
 
 // Thread stuff
 static u32 SlippiNetwork_Thread;
@@ -125,6 +126,17 @@ void listenForClient()
 	}
 }
 
+void hangUpConnection() {
+	if (TimerDiffSeconds(client_alive_ts) >= CLIENT_TERMINATE_S) {
+		// Hang up client if failed to communicate for too long
+		dbgprintf("Client disconnect detected\r\n");
+		client_alive_ts = 0;
+		close(top_fd, client_sock);
+		client_sock = -1;
+		reset_broadcast_timer();
+		ppc_msg("CLIENT HUP\x00", 11);
+	}
+}
 
 /* handleFileTransfer()
  * Deal with sending Slippi data over the network:
@@ -169,11 +181,7 @@ s32 handleFileTransfer()
 	// Naive client hangup detection
 	if (res < 0)
 	{
-		dbgprintf("Client disconnect detected\r\n");
-		close(top_fd, client_sock);
-		client_sock = -1;
-		client_alive_ts = 0;
-		ppc_msg("CLIENT HUP\x00", 11);
+		hangUpConnection();
 		return res;
 	}
 
@@ -238,18 +246,12 @@ s32 checkAlive(void)
 	}
 	else if (res <= 0)
 	{
-		dbgprintf("Client disconnect detected\r\n");
-		client_alive_ts = 0;
-		close(top_fd, client_sock);
-		client_sock = -1;
-		reset_broadcast_timer();
-		ppc_msg("CLIENT HUP\x00", 11);
+		hangUpConnection();
 		return -1;
 	}
 
 	return 0;
 }
-
 
 /* SlippiNetworkHandlerThread()
  * This is the main loop for the server.
