@@ -1,15 +1,7 @@
-#PREFIX = powerpc-gekko-
-PREFIX = $(DEVKITPPC)/bin/powerpc-eabi-
-#PREFIX = /home/megazig/Wii/bootmii-utils/bin/powerpc-elf-
-
-AR = $(PREFIX)ar
-AS = $(PREFIX)as
-CC = $(PREFIX)gcc
-CXX = $(PREFIX)g++
-LD = $(PREFIX)ld
-OBJCOPY = $(PREFIX)objcopy
-RANLIB = $(PREFIX)ranlib
-STRIP = $(PREFIX)strip
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
+include $(DEVKITPPC)/base_tools
 
 ifeq ($(OS),Windows_NT)
 	BIN2H =	../bin2h/bin2h.exe

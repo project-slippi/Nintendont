@@ -1,14 +1,7 @@
-
-PREFIX = $(DEVKITPPC)/bin/powerpc-eabi-
-
-AR = $(PREFIX)ar
-AS = $(PREFIX)as
-CC = $(PREFIX)gcc
-CXX = $(PREFIX)g++
-LD = $(PREFIX)ld
-OBJCOPY = $(PREFIX)objcopy
-RANLIB = $(PREFIX)ranlib
-STRIP = $(PREFIX)strip
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
+include $(DEVKITPPC)/base_tools
 
 MACHDEP = -mcpu=750 -meabi -mhard-float
 CFLAGS = $(MACHDEP) -O1 -s -Werror -Wall -fdata-sections -ffunction-sections
