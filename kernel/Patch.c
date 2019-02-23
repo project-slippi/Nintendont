@@ -3339,9 +3339,9 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		// Use tournament mode region if we're booting NTSC v1.02
 		if (MeleeVersion == MELEE_VERSION_NTSC_2)
 		{
-			// Patch to redirect tournament mode menu to debug menu
-			write32(0x0022d6e8, 0x38000006);
-			dbgprintf("Patch:Redirect Melee tournament mode to debug menu\r\n");
+			// Patch to redirect tournament mode menu to VS mode
+			write32(0x0022D638, 0x38000002);
+			dbgprintf("Patch:Redirect Melee tournament mode to VS mode\r\n");
 			gct_cursor = CODELIST_TOURNAMENT_BASE;
 			max_gct_size  = CODELIST_TOURNAMENT_END - CODELIST_TOURNAMENT_BASE;
 		}
