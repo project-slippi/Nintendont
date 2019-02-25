@@ -127,8 +127,8 @@ static const char GCT_HEADER[8] = { 0x00, 0xd0, 0xc0, 0xde, 0x00, 0xd0, 0xc0, 0x
 static const char GCT_FOOTER[8] = { 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
 
 // First 0x100 bytes of the ISO title string, filled out in kernel/ISO.c
-extern char GAME_TITLENAME[0x100];
-static const char TITLE_20XX[] = "Super Smash Bros Melee 20XX";
+// extern char GAME_TITLENAME[0x100];
+// static const char TITLE_20XX[] = "Super Smash Bros Melee 20XX";
 
 #define MELEE_VERSION_NONE		0
 #define MELEE_VERSION_NTSC_0		1

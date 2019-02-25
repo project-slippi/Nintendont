@@ -843,7 +843,7 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Project Slippi Nintendont");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "supports the NTSC v1.02");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "version of Melee (GALE01).");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "");
+
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(16), "This game may not behave");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "correctly. Please use the");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "vanilla Nintendont build");
