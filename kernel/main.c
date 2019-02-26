@@ -52,6 +52,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //#define USE_OSREPORTDM 1
 
 //#undef DEBUG
+bool access_led = false;
 u32 USBReadTimer = 0;
 extern u32 s_size;
 extern u32 s_cnt;
@@ -179,7 +180,7 @@ int _main( int argc, char *argv[] )
 			Shutdown();
 		}
 	}
-	
+
 	// Boot up SD if it is being used to boot a game
 	if (shouldBootSd)
 	{
@@ -232,7 +233,7 @@ int _main( int argc, char *argv[] )
 			Shutdown();
 		}
 	}
-	
+
 	BootStatus(4, 0, 0);
 
 	BootStatus(5, 0, 0);
@@ -343,6 +344,15 @@ int _main( int argc, char *argv[] )
 	USBReadTimer = Now;
 	u32 Reset = 0;
 	bool SaveCard = false;
+
+	//enable ios led use
+	access_led = ConfigGetConfig(NIN_CFG_LED);
+	if(access_led)
+	{
+		set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
+		clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
+		clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
+	}
 
 	set32(HW_GPIO_ENABLE, GPIO_SENSOR_BAR);
 	clear32(HW_GPIO_DIR, GPIO_SENSOR_BAR);
@@ -659,7 +669,7 @@ int _main( int argc, char *argv[] )
 		devices[0] = NULL;
 		SDHCShutdown();
 	}
-	
+
 	// unmount USB drive
 	if (shouldBootUsb)
 	{
@@ -668,6 +678,9 @@ int _main( int argc, char *argv[] )
 		devices[1] = NULL;
 		USBStorage_Shutdown();
 	}
+
+//make sure drive led is off before quitting
+	if( access_led ) clear32(HW_GPIO_OUT, GPIO_SLOT_LED);
 
 //make sure we set that back to the original
 	write32(HW_PPCSPEED, ori_ppcspeed);
