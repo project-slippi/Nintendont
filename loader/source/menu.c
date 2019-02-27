@@ -530,7 +530,7 @@ typedef struct _MenuCtx
 	u32 menuMode;		// Menu mode. (0 == games; 1 == settings)
 	bool redraw;		// If true, redraw is required.
 	bool selected;		// If true, the user selected a game.
-	bool saveSettings;	// If true, save settings to nincfg.bin.
+	bool saveSettings;	// If true, save settings to slippi_nincfg.bin.
 
 	// Counters for key repeat.
 	struct {
@@ -843,7 +843,7 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Project Slippi Nintendont");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "supports the NTSC v1.02");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "version of Melee (GALE01).");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "");
+
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(16), "This game may not behave");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "correctly. Please use the");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "vanilla Nintendont build");
@@ -927,6 +927,26 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 				};
 				return desc_force_prog;
 			}
+
+			case NIN_CFG_BIT_LED: {
+				static const char *desc_led[] = {
+					"Use the drive slot LED as a",
+					"disk activity indicator.",
+					"",
+					"The LED will be turned on",
+					"when reading from or writing",
+					"to the storage device.",
+					"",
+					"This option has no effect on",
+					"Wii U, since the Wii U does",
+					"not have a drive slot LED.",
+					NULL
+				};
+				return desc_led;
+			}
+
+			case NIN_CFG_AUTO_BOOT:
+				break;
 
 			case NIN_CFG_BIT_REMLIMIT: {
 				static const char *desc_remlimit[] = {
@@ -1458,8 +1478,14 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			if (ListLoopIndex == NIN_CFG_BIT_MEMCARDEMU)
 				item_color = GRAY;
 
-			PrintFormat(MENU_SIZE, item_color, MENU_POS_X+50, SettingY(ListLoopIndex),
-				    "%-18s:%s", OptionStrings[ListLoopIndex], (ncfg->Config & (1 << ListLoopIndex)) ? "On " : "Off" );
+			PrintFormat(
+					MENU_SIZE,
+					item_color,
+					MENU_POS_X+50,
+					SettingY(ListLoopIndex),
+					"%-18s:%s",
+					OptionStrings[ListLoopIndex],
+					(ncfg->Config & (1 << ListLoopIndex)) ? "On " : "Off" );
 		}
 
 		// Language setting.

@@ -14,6 +14,8 @@ const char* OptionStrings[] =
 	"Unlock Read Speed",
 	"OSReport",
 	"Log",
+	"Drive Access LED",
+	"Auto Boot",
 	
 	"Language",
 	"Video",

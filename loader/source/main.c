@@ -135,7 +135,7 @@ static void updateMetaXml(void)
 {
 	char filepath[MAXPATHLEN];
 	bool dir_argument_exists = strlen(launch_dir);
-	
+
 	snprintf(filepath, sizeof(filepath), "%smeta.xml",
 		dir_argument_exists ? launch_dir : "/apps/Nintendont Slippi/");
 
@@ -572,6 +572,14 @@ int main(int argc, char **argv)
 	{
 		memcpy(ncfg, argv[1], sizeof(NIN_CFG));
 		UpdateNinCFG(); //support for old versions with this
+		if(ncfg->Magicbytes == 0x01070CF6 && ncfg->Version == NIN_CFG_VERSION)
+		{
+			if(ncfg->Config & NIN_CFG_AUTO_BOOT)
+			{
+				gprintf(ARGSBOOT_STR);
+				argsboot = true;
+			}
+		}
 	}
 
 	//Meh, doesnt do anything anymore anyways
@@ -793,6 +801,27 @@ int main(int argc, char **argv)
 			ncfg->Language = NIN_LAN_AUTO;
 			ncfg->MemCardBlocks = 0x2;//251 blocks
 		}
+
+		// Prevent autobooting if B is pressed
+		int i = 0;
+		while((ncfg->Config & NIN_CFG_AUTO_BOOT) && i < 1000000) // wait
+		{
+			if (i == 0) {
+				PrintInfo();
+				PrintFormat(DEFAULT_SIZE, BLACK, 320 - 90, MENU_POS_Y + 20*10, "B: Cancel Autoboot");
+				GRRLIB_Render();
+				ClearScreen();
+			}
+
+			FPAD_Update();
+
+			if (FPAD_Cancel(0)) {
+				ncfg->Config &= ~NIN_CFG_AUTO_BOOT;
+				break;
+			}
+
+			i++;
+		}
 	}
 
 	ReconfigVideo(rmode);
@@ -806,9 +835,20 @@ int main(int argc, char **argv)
 		ncfg->VideoMode &= ~NIN_VID_PROG;
 
 	bool SaveSettings = false;
-
-	// Prompt the user to select a device and game.
-	SaveSettings = SelectDevAndGame();
+	if(!(ncfg->Config & NIN_CFG_AUTO_BOOT))
+	{
+		// Not autobooting.
+		// Prompt the user to select a device and game.
+		SaveSettings = SelectDevAndGame();
+	}
+	else
+	{
+		// Autobooting.
+		gprintf("Autobooting:\"%s\"\r\n", ncfg->GamePath );
+		PrintInfo();
+		GRRLIB_Render();
+		ClearScreen();
+	}
 
 //Init DI and set correct ID if needed
 	unsigned int CurDICMD = 0;
@@ -1368,7 +1408,7 @@ int main(int argc, char **argv)
 		__SYS_UnlockSram(1); // 1 -> write changes
 		while(!__SYS_SyncSram());
 	}
-	
+
 	ReconfigVideo(vmode);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
