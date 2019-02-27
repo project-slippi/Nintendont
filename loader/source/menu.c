@@ -1089,9 +1089,10 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 					"Quality of life changes.",
 					"• Salty Runback (Hold A+B)",
 					"• Skip Results Screen",
-					"• KO Star indicates winner",
+					"• Gold indicates last winner",
 					"• CSS Cursor Position fix",
 					"• Hide tag when invisible",
+					"• Disable FoD for doubles",
 					NULL
 				};
 				return desc_melee_qol;
