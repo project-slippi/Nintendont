@@ -449,6 +449,16 @@ void UpdateNinCFG()
 
 		ncfg->Version = 8;
 	}
+	if (ncfg->Version == 8)
+	{
+		// shift bits at indicies 9 - 16 by 2 to make room
+		// for NIN_CFG_LED and NIN_CFG_AUTO_BOOT
+		unsigned int bitsToKeep = ncfg->Config & 0x000001FF;
+		unsigned int bitsToShift = ncfg->Config & 0x0001FE00;
+		ncfg->Config = (bitsToShift << 2) | bitsToKeep;
+
+		ncfg->Version = 9;
+	}
 }
 
 int CreateNewFile(const char *Path, unsigned int size)

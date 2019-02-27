@@ -13,4 +13,5 @@ codehandler/*.h
 .vscode/*
 .idea/*
 !kernel/gecko/*.bin
+kernel/gecko/*.h
 kernel/bin2h/bin2h
