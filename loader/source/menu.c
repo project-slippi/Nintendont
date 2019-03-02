@@ -778,13 +778,13 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 			if ((strncmp(gi->ID, "GALE01", 6) == 0) && (i == ctx->games.posX)) {
 				gamelist_y += 20;
 
-				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340, gamelist_y, "Slippi: ");
-				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(9*10), gamelist_y, "NET ");
+				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340, gamelist_y, "[Slippi] ");
+				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(9*10), gamelist_y, "NET: ");
 				PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_NETWORK)) ? GREEN : RED, 
 					MENU_POS_X+340+(13*10), gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_NETWORK)) ? "ON" : "OFF");
 
-				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(17*10), gamelist_y, "USB ");
-				PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? GREEN : RED, MENU_POS_X+340+(21*10),
+				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(17*10), gamelist_y, "FILE: ");
+				PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? GREEN : RED, MENU_POS_X+340+(22*10),
 						gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "ON" : "OFF");
 
 				// Warn the user if they're running low on USB disk space
