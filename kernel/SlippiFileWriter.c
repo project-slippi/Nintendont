@@ -105,15 +105,16 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	// Write startAt
 	// TODO: Figure out how to specify time zone
 	char timeStr[] = "2011-10-08T07:07:09";
+	int timeStrLen = strlen(timeStr);
 	struct tm *tmp = gmtime(&gameStartTime);
 	_sprintf(
 		&timeStr[0], "%04d-%02d-%02dT%02d:%02d:%02d", tmp->tm_year + 1900,
 		tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-	u8 startAtOpener[] = {'U', 7, 's', 't', 'a', 'r', 't', 'A', 't', 'S', 'U', (u8)sizeof(timeStr)};
+	u8 startAtOpener[] = {'U', 7, 's', 't', 'a', 'r', 't', 'A', 't', 'S', 'U', (u8)timeStrLen};
 	writeLen = sizeof(startAtOpener);
 	memcpy(&footer[writePos], startAtOpener, writeLen);
 	writePos += writeLen;
-	writeLen = sizeof(timeStr);
+	writeLen = timeStrLen;
 	memcpy(&footer[writePos], timeStr, writeLen);
 	writePos += writeLen;
 
