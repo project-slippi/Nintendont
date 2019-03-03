@@ -23,6 +23,7 @@ extern bool Datel;
 
 bool ISOInit();
 void ISOClose();
+void ISOSetupCache();
 const u8 *ISORead(u32* Length, u32 Offset);
 void ISOSeek(u32 Offset);
 
