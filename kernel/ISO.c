@@ -27,6 +27,60 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "ff_utf8.h"
 
+// HPS offset/length
+#define YS_OFFSET	0x4692c840
+#define YS_LENGTH	0x00425560
+
+#define FOD_OFFSET	0x405f6860
+#define FOD_LENGTH	0x005ab620
+
+#define DL_OFFSET	0x42b57100
+#define DL_LENGTH	0x0025e040
+
+#define PS_OFFSET	0x43db20c0
+#define PS_LENGTH	0x00232600
+
+#define PS_ALT_OFFSET	0x43a47ae0
+#define PS_ALT_LENGTH	0x0036a5e0
+
+#define BF_OFFSET	0x45b45ec0
+#define BF_LENGTH	0x003003c0
+
+#define BF_ALT_OFFSET	0x3f3f5140
+#define BF_ALT_LENGTH	0x0038bb60
+
+#define FD_OFFSET	0x45326220
+#define FD_LENGTH	0x0031e6c0
+
+#define FD_ALT_OFFSET	0x3f780ca0
+#define FD_ALT_LENGTH	0x00332e00
+
+#define HPS_ENTRIES	9
+
+// List of HPS offset/lengths for priming the cache
+static const u32 hps[HPS_ENTRIES] = { 
+	YS_OFFSET, 
+	FOD_OFFSET, 
+	DL_OFFSET, 
+	PS_OFFSET, 
+	PS_ALT_OFFSET, 
+	BF_OFFSET, 
+	BF_ALT_OFFSET, 
+	FD_OFFSET, 
+	FD_ALT_OFFSET 
+};
+static const u32 hpsLength[HPS_ENTRIES] = { 
+	YS_LENGTH, 
+	FOD_LENGTH, 
+	DL_LENGTH, 
+	PS_LENGTH, 
+	PS_ALT_LENGTH, 
+	BF_LENGTH, 
+	BF_ALT_LENGTH, 
+	FD_LENGTH, 
+	FD_ALT_LENGTH 
+};
+
 extern u32 TRIGame;
 extern u32 DiscRequested;
 extern bool wiiVCInternal;
@@ -477,6 +531,35 @@ const u8 *ISORead(u32* Length, u32 Offset)
 		return DI_READ_BUFFER;
 	}
 	u32 i;
+
+
+	// Prime the cache with a whole HPS file
+	for(i = 0; i < HPS_ENTRIES; i++)
+	{
+		if (hpsOffset[i] == Offset)
+		{
+			u64 Offset64 = Offset + ISOShift64;
+			if( TempCacheCount >= CACHE_MAX )
+				TempCacheCount = 0;
+
+			if( (DataCacheOffset + hpsLength[i]) >= DCacheLimit )
+			{
+				for( i = 0; i < CACHE_MAX; ++i )
+					DC[i].Size = 0; //quickly delete old cache content
+				DataCacheOffset = 0;
+				TempCacheCount = 0;
+			}
+
+			u32 pos = TempCacheCount;
+			TempCacheCount++;
+			DC[pos].Data = DCCache + DataCacheOffset;
+			DC[pos].Offset = Offset;
+			DC[pos].Size = hpsLength[i];
+			ISOReadDirect(DC[pos].Data, hpsLength[i], Offset64);
+			DataCacheOffset += hpsLength[i];
+			return DC[pos].Data;
+		}
+	}
 
 	for( i = 0; i < CACHE_MAX; ++i )
 	{
