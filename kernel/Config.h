@@ -8,6 +8,7 @@
 #include "alloc.h"
 
 #include "../common/include/CommonConfig.h"
+#include "../common/include/Slippi.h"
 
 enum Video {
 						NTSC,
@@ -48,6 +49,11 @@ extern u32 BI2region;
 
 // Nintendont configuration.
 static NIN_CFG *const ncfg = (NIN_CFG*)0x13004000;
+
+// slippi-wiiconf configuration
+static struct slippi_settings *const slippi_settings = (struct slippi_settings*)0x13003500;
+static inline char *SlippiGetConsoleNick(void) { return slippi_settings->nickname; }
+static inline u32 SlippiGetRtcBias(void) { return slippi_settings->rtc_bias; }
 
 // NOTE: DIChangeDisc() modifies this path.
 static inline char *ConfigGetGamePath(void)

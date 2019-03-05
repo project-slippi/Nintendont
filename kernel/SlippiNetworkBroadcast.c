@@ -6,6 +6,7 @@
 #include "common.h"
 #include "net.h"
 #include "string.h"
+#include "Config.h"
 
 #include "SlippiNetwork.h"
 
@@ -23,9 +24,6 @@ static u32 SlippiNetworkBroadcastHandlerThread(void *arg);
 // Global state from kernel/net.c
 extern s32 top_fd;
 extern u8 wifi_mac_address[6];
-
-// String for Slippi console nickname; probably from config?
-char slippi_nickname[32] ALIGNED(32);
 
 // Broadcast message structure
 const char slip_ready[10] ALIGNED(32) = "SLIP_READY";
@@ -70,20 +68,18 @@ s32 startBroadcast()
 {
 	s32 res;
 
+	int nickLen = strlen(slippi_settings->nickname);
+	if (nickLen > 32) nickLen = 32;
+
 	// Prepare broadcast message buffer with console info
-	_sprintf(slippi_nickname, "%s", "slippi-console-1");
 	memcpy(&ready_msg.cmd, &slip_ready, sizeof(slip_ready));
 	memcpy(&ready_msg.mac_addr, &wifi_mac_address, sizeof(wifi_mac_address));
-	memcpy(&ready_msg.nickname, &slippi_nickname, sizeof(slippi_nickname));
+	memcpy(&ready_msg.nickname, slippi_settings->nickname, nickLen);
 
 	discover_sock = socket(top_fd, AF_INET, SOCK_DGRAM, IPPROTO_IP);
 
 	// Start indicating our status to clients on the local network
 	res = connect(top_fd, discover_sock, (struct sockaddr *)&discover);
-
-	// I commented this first sendTo because the desktop app was receiving the message from
-	// IP Address 0.0.0.0
-	//sendto(top_fd, discover_sock, &ready_msg, sizeof(ready_msg), 0);
 
 	// Initialize the broadcast message timer
 	broadcast_ts = read32(HW_TIMER);

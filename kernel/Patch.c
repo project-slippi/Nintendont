@@ -3976,16 +3976,23 @@ void PatchGame()
 	PatchState = PATCH_STATE_PATCH;
 	u32 FullLength = (DOLMaxOff - DOLMinOff + 31) & (~31);
 	DoPatches( (void*)DOLMinOff, FullLength, 0 );
+
 	// Some games need special timings
 	EXISetTimings(TITLE_ID, GAME_ID & 0xFF);
+
 	// Init Cache if its a new ISO
 	if(TRIGame != TRI_SB)
 		ISOSetupCache();
+
 	// Reset SI status
 	SIInit();
 	u32 SiInitSet = 0;
+
 	// Reset Triforce
-	TRIReset();
+	
+	// I think we can skip this if TRI Arcade setup is disabled
+	//TRIReset();
+
 	// Didn't look for why PMW2 requires this.  ToDo
 	if ((TITLE_ID) == 0x475032 || TRIGame) // PacMan World 2 and Triforce hack
 		SiInitSet = 1;
@@ -3995,12 +4002,15 @@ void PatchGame()
 	write32(0x1300306C, drcAddress); //Set on kernel boot
 	write32(0x13003070, drcAddressAligned); //Set on kernel boot
 	sync_after_write((void*)0x13003060, 0x20);
+
 	/* Clear very actively used areas */
 	memset32((void*)0x13026500, 0, 0x100);
 	sync_after_write((void*)0x13026500, 0x100);
+
 	/* Clear AR positions */
 	memset32((void*)0x131C0040, 0, 0x20);
 	sync_after_write((void*)0x131C0040, 0x20);
+
 	/* Secure Low Mem */
 	Patch31A0();
 	write32( FLUSH_LEN, FullLength >> 5 );
@@ -4013,10 +4023,13 @@ void PatchGame()
 	sync_after_write((void*)0x1000, 0x2000); //low patches
 	write32( RESET_STATUS, GameEntry );
 	sync_after_write((void*)RESET_STATUS, 0x20);
+
 	// single rel patch required for some games
 	NeedRelPatches = GameRelTimerPatches();
+
 	// constant patching required in even fewer cases
 	NeedConstantRelPatches = GameRelConstantTimerPatches();
+
 	// in case we patched ipl remove status
 	useipl = 0;
 }

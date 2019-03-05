@@ -124,6 +124,7 @@ static u8 loader_stub[0x1800]; //save internally to prevent overwriting
 static ioctlv IOCTL_Buf ALIGNED(32);
 static const char ARGSBOOT_STR[9] ALIGNED(0x10) = {'a','r','g','s','b','o','o','t','\0'}; //makes it easier to go through the file
 static const char NIN_BUILD_STRING[] ALIGNED(32) = NIN_VERSION_STRING; // Version detection string used by nintendont launchers "$$Version:x.xxx"
+static const char DEFAULT_NICKNAME[32] ALIGNED(32) = "SlippiConsole\x00";
 
 bool isWiiVC = false;
 bool wiiVCInternal = false;
@@ -792,6 +793,7 @@ int main(int argc, char **argv)
 		// Load titles.txt.
 		LoadTitles();
 
+		// Load Nintendont configuration file
 		if (LoadNinCFG() == false)
 		{
 			memset(ncfg, 0, sizeof(NIN_CFG));
@@ -800,6 +802,16 @@ int main(int argc, char **argv)
 			ncfg->Version = NIN_CFG_VERSION;
 			ncfg->Language = NIN_LAN_AUTO;
 			ncfg->MemCardBlocks = 0x2;//251 blocks
+		}
+
+		/* Load configuration file from slippi-wiiconf.
+		 * If we can't load the file, set some sane defaults.
+		 */
+
+		if (LoadSlippiDat() == false)
+		{
+			memset(slippi_settings, 0, sizeof(struct slippi_settings));
+			memcpy(slippi_settings->nickname, DEFAULT_NICKNAME, 32);
 		}
 
 		// Prevent autobooting if B is pressed
@@ -1190,14 +1202,25 @@ int main(int argc, char **argv)
 
 	//make sure the cfg gets to the kernel
 	DCStoreRange((void*)ncfg, sizeof(NIN_CFG));
+	DCStoreRange((void*)slippi_settings, sizeof(struct slippi_settings));
 
-//set current time
+	/* Set the current time. Try to get the RTC bias from slippi-wiiconf
+	 * first. Otherwise, just use the one from the Wii's SYSCONF file.
+	 */
+
 	u32 bias = 0, cur_time = 0;
 	__SYS_GetRTC(&cur_time);
-	if(CONF_GetCounterBias(&bias) >= 0)
-		cur_time += bias;
+
+	if (slippi_settings->rtc_bias > 0)
+		cur_time += slippi_settings->rtc_bias;
+	else
+	{
+		if(CONF_GetCounterBias(&bias) >= 0)
+			cur_time += bias;
+	}
 	settime(secs_to_ticks(cur_time));
-//hand over approx time passed since 1970
+
+	//hand over approx time passed since 1970
 	*(vu32*)0xD3003424 = (cur_time+946684800);
 
 //set status for kernel to start running

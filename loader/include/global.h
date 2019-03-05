@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Config.h"
 #include "grrlib.h"
 
+#include "../../common/include/Slippi.h"
+
 #ifndef HW_RVL
 #define HW_RVL
 #endif
@@ -83,6 +85,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern bool UseSD;
 extern u32 POffset;
 extern NIN_CFG *ncfg;
+extern struct slippi_settings *slippi_settings;
 extern FILE *cfg;
 extern GRRLIB_ttfFont *myFont;
 extern GRRLIB_texImg *background;
@@ -167,6 +170,10 @@ void unzip_data(const void *input, const unsigned int input_size,
  * @return True if loaded successfully; false if not.
  */
 bool LoadNinCFG(void);
+
+// Load slippi-wiiconf configuration file from root device.
+// Return True if successful; false if not.
+bool LoadSlippiDat(void);
 
 void UpdateNinCFG();
 bool IsGCGame(u8 *Buffer);

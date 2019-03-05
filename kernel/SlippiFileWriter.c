@@ -7,6 +7,8 @@
 
 #include "SlippiDebug.h"
 
+#include "Config.h"
+
 // Game can transfer at most 784 bytes / frame
 // That means 4704 bytes every 100 ms. Let's aim to handle
 // double that, making our read buffer 10000 bytes
@@ -125,6 +127,16 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	writePos += writeLen;
 	memcpy(&footer[writePos], &reader->metadata.lastFrame, 4);
 	writePos += 4;
+
+	// Write console nickname
+	u8 nickLen = strlen(SlippiGetConsoleNick());
+	if (nickLen > 32) nickLen = 32;
+	u8 consoleNickOpener[] = { 'U', 11, 'c', 'o', 'n', 's', 'o', 'l', 'e', 'N', 'i', 'c', 'k', 'S', 'U', nickLen };
+	writeLen = sizeof(consoleNickOpener);
+	memcpy(&footer[writePos], consoleNickOpener, writeLen);
+	writePos += writeLen;
+	memcpy(&footer[writePos], SlippiGetConsoleNick(), nickLen);
+	writePos += nickLen;
 
 	// Write closing
 	u8 closing[] = {

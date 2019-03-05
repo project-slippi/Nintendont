@@ -356,6 +356,35 @@ bool LoadNinCFG(void)
 	return ConfigLoaded;
 }
 
+/* LoadSlippiDat()
+ * Read slippi_console.dat contents into 0x93003500.
+ * In vanilla Nintendont, 0x13003500-0x13003600 is used for "TRI arcade settings".
+ * TRI Arcade code touching this should be disabled.
+ */
+
+struct slippi_settings *slippi_settings = (struct slippi_settings*)0x93003500;
+bool LoadSlippiDat(void)
+{
+	bool ConfigLoaded = true;
+	UINT BytesRead;
+	FIL dat;
+
+	memset(slippi_settings, 0, sizeof(struct slippi_settings));
+
+	if (f_open_char(&dat, SLIPPI_DAT_FILE, FA_READ|FA_OPEN_EXISTING) != FR_OK)
+		return false;
+
+	f_read(&dat, slippi_settings, sizeof(struct slippi_settings), &BytesRead);
+	f_close(&dat);
+	if (BytesRead != sizeof(struct slippi_settings))
+		ConfigLoaded = false;
+
+	// Always NUL-terminate the nickname string (... just in case)
+	slippi_settings->nickname[31] = 0x00;
+
+	return ConfigLoaded;
+}
+
 inline void ClearScreen()
 {
 	if (bg_isWidescreen)
