@@ -788,6 +788,7 @@ int main(int argc, char **argv)
 	// Update meta.xml.
 	updateMetaXml();
 
+	bool SaveSettings = false;
 	if(argsboot == false)
 	{
 		// Load titles.txt.
@@ -829,6 +830,7 @@ int main(int argc, char **argv)
 
 			if (FPAD_Cancel(0)) {
 				ncfg->Config &= ~NIN_CFG_AUTO_BOOT;
+				SaveSettings = true;
 				break;
 			}
 
@@ -846,12 +848,12 @@ int main(int argc, char **argv)
 	else
 		ncfg->VideoMode &= ~NIN_VID_PROG;
 
-	bool SaveSettings = false;
 	if(!(ncfg->Config & NIN_CFG_AUTO_BOOT))
 	{
 		// Not autobooting.
 		// Prompt the user to select a device and game.
-		SaveSettings = SelectDevAndGame();
+		// ORDER IS IMPORTANT HERE, mind short-circuits.
+		SaveSettings = SelectDevAndGame() || SaveSettings;
 	}
 	else
 	{
