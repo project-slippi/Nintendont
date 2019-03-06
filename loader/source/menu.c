@@ -1091,7 +1091,6 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 					"• Skip Results Screen",
 					"• Gold indicates last winner",
 					"• CSS Cursor Position fix",
-					"• Hide tag when invisible",
 					"• Disable FoD for doubles",
 					NULL
 				};
