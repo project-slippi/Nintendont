@@ -12,7 +12,7 @@ _Project Slippi Nintendont only officially supports the NTSC 1.02 version of Mel
 - Support for streaming replay data over Wi-Fi or a USB Ethernet adapter
 - Allows users to toggle various codes before booting into Melee:
 	- Controller fixes (permanent UCF, in-game toggleable UCF/Ardiuno fixes)
-	- Neutral spawn
+	- Tournament mods (neutral spawns, nametag hide)
 	- Quality-of-live changes
 	- NTSC-to-PAL conversion
 

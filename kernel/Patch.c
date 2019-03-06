@@ -115,7 +115,7 @@ u32 IsN64Emu = 0;
 #include "gecko/g_core.h"	// Core Slippi codeset
 #include "gecko/g_ucf.h"	// UCF codeset
 #include "gecko/g_toggles.h"	// Player-toggleable None/UCF/Dween at CSS
-#include "gecko/g_spawns.h"	// Force neutral spawns
+#include "gecko/g_tournament.h"	// Tournament codes: neutral spawns, nametag hide
 #include "gecko/g_pal.h"	// Convert NTSC to PAL
 #include "gecko/g_qol.h"	// Salty runback/KO star indicates previous winner
 
@@ -3430,11 +3430,11 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 			sync_after_write((void*)gct_cursor, g_qol_size);
 			gct_cursor += g_qol_size;
 		}
-		if (ConfigGetConfig(NIN_CFG_MELEE_SPAWN))
+		if (ConfigGetConfig(NIN_CFG_MELEE_TOURNAMENT))
 		{
-			memcpy((void*)gct_cursor, g_spawns, g_spawns_size);
-			sync_after_write((void*)gct_cursor, g_spawns_size);
-			gct_cursor += g_spawns_size;
+			memcpy((void*)gct_cursor, g_tournament, g_tournament_size);
+			sync_after_write((void*)gct_cursor, g_tournament_size);
+			gct_cursor += g_tournament_size;
 		}
 
 		dbgprintf("Patch:Apply controller fix at 0x%08x\r\n", gct_cursor);

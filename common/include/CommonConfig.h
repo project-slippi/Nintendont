@@ -59,7 +59,7 @@ enum ninconfigbitpos
 	// "On" or "Off" Melee patches
 	NIN_CFG_BIT_MELEE_PAL	= (16),
 	NIN_CFG_BIT_MELEE_QOL	= (17),
-	NIN_CFG_BIT_MELEE_SPAWN	= (18),
+	NIN_CFG_BIT_MELEE_TOURNAMENT	= (18),
 
 	// Internal kernel settings.
 	NIN_CFG_BIT_MC_SLOTB	= (31),	// Slot B image is loaded
@@ -87,7 +87,7 @@ enum ninconfig
 
 	NIN_CFG_MELEE_PAL	= (1<<NIN_CFG_BIT_MELEE_PAL),
 	NIN_CFG_MELEE_QOL	= (1<<NIN_CFG_BIT_MELEE_QOL),
-	NIN_CFG_MELEE_SPAWN	= (1<<NIN_CFG_BIT_MELEE_SPAWN),
+	NIN_CFG_MELEE_TOURNAMENT	= (1<<NIN_CFG_BIT_MELEE_TOURNAMENT),
 
 	NIN_CFG_MC_SLOTB	= (1<<NIN_CFG_BIT_MC_SLOTB),
 };

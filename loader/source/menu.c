@@ -1074,19 +1074,19 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 				return desc_melee_qol;
 			}
 			case 7: {
-				// Neutral Spawns
-				static const char *desc_melee_pal[] = {
-					"Turning this on will force",
-					"players to spawn in neutral",
-					"locations",
+				// Tournament Mods
+				static const char *desc_melee_tournament[] = {
+					"Improve competition fairness",
+					"• Neutral Spawns",
+					"• Hide tag when invisible",
 					NULL
 				};
-				return desc_melee_pal;
+				return desc_melee_tournament;
 			}
 			case 8: {
 				// Quality of Life
 				static const char *desc_melee_qol[] = {
-					"Quality of life changes.",
+					"Quality of life changes",
 					"• Salty Runback (Hold A+B)",
 					"• Skip Results Screen",
 					"• Gold indicates last winner",
@@ -1446,9 +1446,9 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					ctx->redraw = true;
 					break;
 				case 7:
-					// Neutral Spawns
+					// Tournament codes
 					ctx->saveSettings = true;
-					ncfg->Config ^= (NIN_CFG_MELEE_SPAWN);
+					ncfg->Config ^= (NIN_CFG_MELEE_TOURNAMENT);
 					ctx->redraw = true;
 					break;
 				case 8:
@@ -1630,9 +1630,9 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 				"%-18s:%-4s", "PAL", (ncfg->Config & (NIN_CFG_MELEE_PAL)) ? "On" : "Off");
 		ListLoopIndex++;
 
-		// Neutral Spawns Toggle
+		// Tournament Toggle
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Neutral Spawns", (ncfg->Config & (NIN_CFG_MELEE_SPAWN)) ? "On" : "Off");
+				"%-18s:%-4s", "Tournament Mods", (ncfg->Config & (NIN_CFG_MELEE_TOURNAMENT)) ? "On" : "Off");
 		ListLoopIndex++;
 
 		// QOL Toggle
