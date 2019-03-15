@@ -66,7 +66,6 @@ s32 SlippiNetworkInit()
 		0x78);
 	thread_continue(SlippiNetwork_Thread);
 	SlippiServerStarted = 1;
-	ppc_msg("SERVER INIT OK\x00", 15);
 	return 0;
 }
 
@@ -121,7 +120,6 @@ void listenForClient()
 		dbgprintf("[TCP_NODELAY] Client setsockopt result: %d\r\n", optRes);
 
 		dbgprintf("Client connection detected\r\n");
-		ppc_msg("CLIENT OK\x00", 10);
 		client_alive_ts = read32(HW_TIMER);
 	} else {
 		// dbgprintf("Client sock accept failure: %d\r\n", client_sock);
@@ -146,7 +144,6 @@ void hangUpConnection() {
 	close(top_fd, client_sock);
 	client_sock = -1;
 	reset_broadcast_timer();
-	ppc_msg("CLIENT HUP\x00", 11);
 }
 
 /* handleFileTransfer()
@@ -163,10 +160,10 @@ static SlpGameReader reader;
 s32 handleFileTransfer()
 {
 	int status = getConnectionStatus();
-	if (status != CONN_STATUS_CONNECTED) {
-		// Do nothing if we aren't connected to a client
+
+	// Do nothing if we aren't connected to a client
+	if (status != CONN_STATUS_CONNECTED)
 		return 0;
-	}
 
 	SlpMemError err = SlippiMemoryRead(&reader, readBuf, READ_BUF_SIZE, memReadPos);
 	if (err)
@@ -231,17 +228,14 @@ static char alive_msg[] __attribute__((aligned(32))) = "HELO";
 s32 checkAlive(void)
 {
 	int status = getConnectionStatus();
-	if (status != CONN_STATUS_CONNECTED) {
-		// Do nothing if we aren't connected to a client
-		// the handleFileTransfer could sometimes cause a disconnect
-		return 0;
-	}
 
-	if (TimerDiffSeconds(client_alive_ts) < 3)
-	{
-		// Only check alive if we haven't detected any communication
+	// Do nothing if we aren't connected to a client
+	if (status != CONN_STATUS_CONNECTED)
 		return 0;
-	}
+
+	// Only check alive if we haven't detected any communication
+	if (TimerDiffSeconds(client_alive_ts) < 3)
+		return 0;
 
 	s32 res;
 	res = sendto(top_fd, client_sock, alive_msg, sizeof(alive_msg), 0);

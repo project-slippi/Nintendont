@@ -5,8 +5,6 @@
 #include "string.h"
 #include "ff_utf8.h"
 
-#include "SlippiDebug.h"
-
 #include "Config.h"
 
 // Game can transfer at most 784 bytes / frame

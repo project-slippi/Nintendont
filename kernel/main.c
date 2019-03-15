@@ -41,7 +41,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "SlippiFileWriter.h"
 #include "SlippiNetwork.h"
 #include "SlippiNetworkBroadcast.h"
-#include "SlippiDebug.h"
 #include "net.h"
 
 #include "diskio.h"
@@ -477,7 +476,6 @@ int _main( int argc, char *argv[] )
 
 		// Initialize 8040a5a8 with a string to print w/ UnclePunch Gecko code
 		if ( (TimerDiffSeconds(NCDTimer) > 3) && (SlippiDbgStringInit == 0) ) {
-			ppc_msg("SLIPPI BUP\x00", 11);
 			SlippiDbgStringInit = 1;
 		}
 

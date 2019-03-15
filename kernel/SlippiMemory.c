@@ -1,5 +1,4 @@
 #include "SlippiMemory.h"
-#include "SlippiDebug.h"
 #include "common.h"
 #include "debug.h"
 #include "string.h"
@@ -71,7 +70,6 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 		if (bytesRead > 0 && command == SLP_CMD_RECEIVE_COMMANDS)
 		{
 			dbgprintf("WARN: Unnexpected new game message\r\n");
-			ppc_msg("SLP UNEXP MSG\x00", 14);
 			errCode = SLP_MEM_UNNEX_NG;
 			break;
 		}
@@ -82,7 +80,6 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 			reader->lastReadResult.isNewGame = true;
 			resetMetadata(reader);
 			setPayloadSizes(reader, normalizedReadPos);
-			ppc_msg("SLP NEWGAME\x00", 12);
 		}
 
 		u16 payloadSize = getPayloadSize(reader, command);
@@ -129,7 +126,6 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 		// Special case handling: game end message processed
 		if (command == SLP_CMD_RECEIVE_GAME_END)
 		{
-			ppc_msg("SLP GAME END\x00", 13);
 			reader->lastReadResult.isGameEnd = true;
 			break;
 		}
@@ -156,11 +152,10 @@ void resetMetadata(SlpGameReader *reader)
 void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength)
 {
 	u8 command = message[0];
+
+	// Only need to update if this is a post frame update
 	if (messageLength <= 0 || command != SLP_CMD_RECEIVE_POST_FRAME_UPDATE)
-	{
-		// Only need to update if this is a post frame update
 		return;
-	}
 
 	// Keep track of last frame
 	reader->metadata.lastFrame = message[1] << 24 | message[2] << 16 | message[3] << 8 | message[4];
@@ -205,9 +200,7 @@ u16 getPayloadSize(SlpGameReader *reader, u8 command)
 {
 	int payloadSizesIndex = command - SLP_CMD_RECEIVE_COMMANDS;
 	if (payloadSizesIndex >= PAYLOAD_SIZES_BUFFER_SIZE || payloadSizesIndex < 0)
-	{
 		return 0;
-	}
 
 	return reader->payloadSizes[payloadSizesIndex];
 }

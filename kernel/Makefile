@@ -22,6 +22,7 @@ else
 	ZIP = zip
 endif
 
+
 CFLAGS	:= -mbig-endian -O3 -std=gnu89 -g -I. -Wall \
 	   -mcpu=arm926ej-s -msoft-float -mfloat-abi=soft \
 	   -fdata-sections -ffunction-sections -fno-builtin-toupper -fno-builtin-memcpy \
@@ -34,7 +35,7 @@ LDFLAGS	:= -nostartfiles -nodefaultlibs -mbig-endian -Wl,--gc-sections,-T,kernel
 TARGET	:= kernel.elf
 OBJECTS	:= start.o common.o alloc.o GCAM.o JVSIO.o JVSIOMessage.o FST.o DI.o RealDI.o \
 	   SlippiMemory.o SlippiFileWriter.o SlippiNetwork.o SlippiNetworkBroadcast.o \
-	   SlippiDebug.o Patch.o PatchTimers.o TRI.o \
+	   Patch.o PatchTimers.o TRI.o \
 	   PatchWidescreen.o ISO.o Stream.o adp.o EXI.o SRAM.o GCNCard.o SI.o HID.o diskio.o \
 	   Config.o utils_asm.o ES.o NAND.o main.o syscalls.o ReadSpeed.o vsprintf.o string.o \
 	   prs.o SDI.o usb.o usbstorage.o wdvd.o net.o
@@ -43,6 +44,15 @@ ZIPFILE	:= ../loader/data/kernel.zip
 
 # Bluetooth stack
 OBJECTS	+= lwbt/bte.o lwbt/btmemb.o lwbt/btmemr.o lwbt/btpbuf.o lwbt/hci.o lwbt/l2cap.o lwbt/physbusif.o BT.o
+
+
+# When make is invoked with `make SLIPPI_DEBUG=1`: compile SlippiDebug.o and
+# let GCC define SLIPPI_PROFILE as a macro. Use this for some profiling code.
+
+ifeq ($(SLIPPI_DEBUG), 1)
+	OBJECTS += SlippiDebug.o
+	CFLAGS += -DSLIPPI_DEBUG
+endif
 
 #---------------------------------------------------------------------------------
 # For pulling in built-in Gecko codes

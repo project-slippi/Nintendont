@@ -10,8 +10,6 @@
 #include "debug.h"
 #include "net.h"
 
-#include "SlippiDebug.h"
-
 // File descriptor for the IOS socket driver, shared by all Slippi threads
 s32 top_fd __attribute__((aligned(32)));
 
@@ -93,7 +91,6 @@ int NCDInit(void)
 	dbgprintf("IOCTL_SO_GETHOSTID: 0x%x\n", current_ip_address);
 
 	NetworkStarted = 1;
-	ppc_msg("NCDINIT OK\x00", 11);
 	return 0;
 }
 
@@ -231,9 +228,8 @@ s32 sendto(s32 fd, s32 socket, void *data, s32 len, u32 flags)
 	 */
 
 	u8 *message_buf = (u8*)heap_alloc_aligned(0, len, 32);
-	if (message_buf == NULL) {
+	if (message_buf == NULL)
 		return -1;
-	}
 
 	// I don't see how this won't totally kill performance
 	memset(params, 0, sizeof(struct sendto_params));
