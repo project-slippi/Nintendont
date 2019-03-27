@@ -6,6 +6,8 @@
 // Function declarations
 int vsCheckCSS(void);
 int checkCrash(int socket);
+void SlippiDebugShutdown();
+s32 SlippiDebugInit();
 
 /* ppc_msg()
  * Copy some buffer into the MEM1 region (starting at 0x8040a5a8) read by

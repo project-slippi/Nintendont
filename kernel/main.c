@@ -43,6 +43,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "SlippiNetworkBroadcast.h"
 #include "net.h"
 
+#ifdef SLIPPI_DEBUG
+#include "SlippiDebug.h"
+#endif
+
 #include "diskio.h"
 #include "usbstorage.h"
 #include "SDI.h"
@@ -501,6 +505,9 @@ int _main( int argc, char *argv[] )
 			if (TimerDiffSeconds(NCDTimer) > 5) {
 				ret = SlippiNetworkInit();
 				dbgprintf("SlippiNetworkInit returned %d\r\n", ret);
+#ifdef SLIPPI_DEBUG
+				ret = SlippiDebugInit();
+#endif
 				ret = SlippiNetworkBroadcastInit();
 				dbgprintf("SlippiNetworkBroadcastInit returned %d\r\n", ret);
 			}

@@ -13,6 +13,13 @@
 #include "Config.h"
 #include "ff_utf8.h"
 
+#ifdef SLIPPI_DEBUG
+#include "SlippiDebug.h"
+#include "net.h"
+extern s32 debug_sock;
+extern s32 top_fd;
+#endif
+
 static FIL dbgfile;
 static int file_opened = -1;
 vu32 SDisInit=0;
@@ -311,6 +318,18 @@ int dbgprintf( const char *fmt, ...)
 	_vsprintf(buffer, fmt, args);
 	va_end(args);
 
+
+/* NOTE: When SLIPPI_DEBUG is set, ignore writes to the log on SD card in an
+ * attempt to make things more reliable for us. Also, like with writes to the
+ * SD card, the caller will spend extra time on-CPU blocking until sendto() is
+ * finished. Consider passing a message or buffering up data in another thread
+ * instead of blocking the caller!
+ */
+
+#ifdef SLIPPI_DEBUG
+	if ((top_fd > 0) && (debug_sock > 0))
+		sendto(top_fd, debug_sock, buffer, strlen(buffer), 0);
+#else
 	u32 read;	
 	if( SDisInit )
 	{
@@ -337,8 +356,8 @@ int dbgprintf( const char *fmt, ...)
 
 	if( !IsWiiU() ) // usbgecko?
 		svc_write(buffer);
-
 	//heap_free( 0, buffer );
+#endif
 
 	return 0;
 }

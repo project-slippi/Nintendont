@@ -33,6 +33,8 @@ __slippi_stack_addr = __slippi_network_stack_addr + __slippi_stack_size;
 __slippi_network_broadcast_stack_size = 0x400;
 __slippi_network_broadcast_stack_addr = __slippi_stack_addr + __slippi_network_broadcast_stack_size;
 
+__slippi_debug_stack_size = 0x400;
+__slippi_debug_stack_addr = __slippi_network_broadcast_stack_addr + __slippi_debug_stack_size;
 
 MEMORY {
 
