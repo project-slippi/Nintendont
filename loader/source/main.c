@@ -49,6 +49,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Config.h"
 #include "wdvd.h"
 
+#include "../../common/include/KernelBoot.h"
+
 #include "ff_utf8.h"
 #include "diskio.h"
 // from diskio.c
@@ -1228,7 +1230,7 @@ int main(int argc, char **argv)
 	while(1)
 	{
 		DCInvalidateRange( STATUS, 0x20 );
-		if( STATUS_LOADING == 0xdeadbeef )
+		if (STATUS_LOADING == KERNEL_RUNNING)
 			break;
 
 		if(argsboot == false)
@@ -1236,23 +1238,25 @@ int main(int argc, char **argv)
 			PrintInfo();
 
 			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*6, "Loading patched kernel... %d", STATUS_LOADING);
-			if(STATUS_LOADING == 0)
+			if(STATUS_LOADING == ES_INIT)
 			{
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*7, "ES_Init...");
 				// Cleans the -1 when it's past it to avoid confusion if another error happens. e.g. before it showed "81" instead of "8" if the controller was unplugged.
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 163, MENU_POS_Y + 20*6, " ");
 			}
-			if((STATUS_LOADING > 0 || abs(STATUS_LOADING) > 1) && STATUS_LOADING < 20)
+			if((STATUS_LOADING > ES_INIT || abs(STATUS_LOADING) > 1) && STATUS_LOADING < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*7, "ES_Init... Done!");
-			if(STATUS_LOADING == 2)
+
+			if(STATUS_LOADING == STORAGE_INIT)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*8, "Initing storage devices...");
-			if(abs(STATUS_LOADING) > 2 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > STORAGE_INIT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*8, "Initing storage devices... Done!");
 			if(STATUS_LOADING == -2)
 				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*8, "Initing storage devices... Error! %d  Shutting down", STATUS_ERROR);
-			if(STATUS_LOADING == 3)
+
+			if(STATUS_LOADING == STORAGE_MOUNT)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*9, "Mounting USB/SD device...");
-			if(abs(STATUS_LOADING) > 3 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > STORAGE_MOUNT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*9, "Mounting USB/SD device... Done!");
 			if(STATUS_LOADING == -3 && (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE))) {
 				// Special error message when file writes are enabled
@@ -1263,7 +1267,8 @@ int main(int argc, char **argv)
 				// Default error message for USB load
 				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*9, "Mounting USB/SD device... Error! %d  Shutting down", STATUS_ERROR);
 			}
-			if(STATUS_LOADING == 5) {
+
+			if(STATUS_LOADING == STORAGE_CHECK) {
 	/* 			if (timeout == 0)
 					timeout = ticks_to_secs(gettime()) + 20; // Set timer for 20 seconds
 				else if (timeout <= ticks_to_secs(gettime())) {
@@ -1276,31 +1281,36 @@ int main(int argc, char **argv)
 				}*/
 				PrintFormat(DEFAULT_SIZE, (STATUS_ERROR == -7) ? MAROON:BLACK, MENU_POS_X, MENU_POS_Y + 20*10, (STATUS_ERROR == -7) ? "Checking FS... Timeout!" : "Checking FS...");
 			}
-			if(abs(STATUS_LOADING) > 5 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > STORAGE_CHECK && abs(STATUS_LOADING) < 20)
 			{
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*10, "Checking FS... Done!");
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*11, "Drive size: %.02f%s Sector size: %d", STATUS_DRIVE, STATUS_GB_MB ? "GB" : "MB", STATUS_SECTOR);
 			}
 			if(STATUS_LOADING == -5)
 				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*10, "Checking FS... Error! %d Shutting down", STATUS_ERROR);
-			if(STATUS_LOADING == 6)
-				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*12, "ES_LoadModules...");
-			if(abs(STATUS_LOADING) > 6 && abs(STATUS_LOADING) < 20)
-				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*12, "ES_LoadModules... Done!");
+
+			if(STATUS_LOADING == NETWORK_INIT)
+				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*12, "Slippi network init...");
+			if(abs(STATUS_LOADING) > NETWORK_INIT && abs(STATUS_LOADING) < 20)
+				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*12, "Slippi network init... Done!");
 			if(STATUS_LOADING == -6)
-				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*12, "ES_LoadModules... Error! %d Shutting down", STATUS_ERROR);
-			if(STATUS_LOADING == 7)
+				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*12, "Slippi network init... Error! %d Shutting down", STATUS_ERROR);
+
+			if(STATUS_LOADING == CONFIG_INIT)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*13, "Loading config...");
-			if(abs(STATUS_LOADING) > 7 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > CONFIG_INIT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*13, "Loading config... Done!");
-			if(STATUS_LOADING == 9)
+
+			if(STATUS_LOADING == DI_INIT)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*14, "Init DI... %40s", " ");
-			if(abs(STATUS_LOADING) > 9 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > DI_INIT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*14, "Init DI... Done! %35s", " ");
-			if(STATUS_LOADING == 10)
+
+			if(STATUS_LOADING == CARD_INIT)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*15, "Init CARD...");
-			if(abs(STATUS_LOADING) > 10 && abs(STATUS_LOADING) < 20)
+			if(abs(STATUS_LOADING) > CARD_INIT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*15, "Init CARD... Done!");
+
 			GRRLIB_Screen2Texture(0, 0, screen_buffer, GX_FALSE); // Copy all status messages
 			GRRLIB_Render();
 			ClearScreen();
