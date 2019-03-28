@@ -43,6 +43,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "SlippiNetworkBroadcast.h"
 #include "net.h"
 
+#include "../common/include/KernelBoot.h"
+
 #ifdef SLIPPI_DEBUG
 #include "SlippiDebug.h"
 #endif
@@ -88,12 +90,17 @@ extern u32 NetworkStarted;
 
 // Server status, from kernel/SlippiNetwork.c
 extern u32 SlippiServerStarted;
-static int SlippiDbgStringInit = 0;
 
+// The kernel entrypoint
 int _main( int argc, char *argv[] )
 {
-	//BSS is in DATA section so IOS doesnt touch it, we need to manually clear it
-	//dbgprintf("memset32(%08x, 0, %08x)\n", &__bss_start, &__bss_end - &__bss_start);
+	/* This kernel image is memcpy()'d into memory by the PPC loader.
+	 * When booting with IOS syscall 0x43, presumably there's no guarantee
+	 * that .data sections are initialized. It's possible that the memory
+	 * we've overlaid the image on-top of is polluted with old data. 
+	 * Manually initializing BSS here handles this?
+	 */
+
 	memset32(&__bss_start, 0, &__bss_end - &__bss_start);
 	sync_after_write(&__bss_start, &__bss_end - &__bss_start);
 
@@ -115,7 +122,12 @@ int _main( int argc, char *argv[] )
 	s32 ret = 0;
 	u32 DI_Thread = 0;
 
-	BootStatus(0, 0, 0);
+
+/* ES_INIT BOOT STAGE
+ * Flip some bit for enabling the DVD drive. Does HID initialization, although
+ * this is unused for Slippi I think?
+ */
+	BootStatus(ES_INIT, 0, 0);
 
 	if(!isWiiVC)
 	{
@@ -128,16 +140,19 @@ int _main( int argc, char *argv[] )
 	//Early HID for loader
 	HIDInit();
 
+/* LOADER_SIGNAL BOOT STAGE
+ * I think we block here until the user has decided to boot a game.
+ */
+	BootStatus(LOADER_SIGNAL, 0, 0);
 	dbgprintf("Sending signal to loader\r\n");
-	BootStatus(1, 0, 0);
 	mdelay(10);
 
-	//give power button to loader
+	// give power button to loader
 	set32(HW_GPIO_ENABLE, GPIO_POWER);
 	clear32(HW_GPIO_DIR, GPIO_POWER);
 	set32(HW_GPIO_OWNER, GPIO_POWER);
 
-	//Loader running, selects games
+	// loader running, selects games
 	while(1)
 	{
 		_ahbMemFlush(1);
@@ -156,16 +171,24 @@ int _main( int argc, char *argv[] )
 		udelay(20);
 		cc_ahbMemFlush(1);
 	}
-	//get time from loader
+
+	// get time from loader
 	InitCurrentTime();
-	//get config from loader
+
+	// get config from loader
 	ConfigSyncBeforeRead();
+
+/* STORAGE_INIT BOOT STAGE
+ * Do initialization for SD/USB storage devices.
+ * USB/SD initialization basically just sets up global state for later.
+ * Spawn the RealDI thread if we're booting from the actual DVD drive.
+ */
+	BootStatus(STORAGE_INIT, 0, 0);
 
 	u32 SlippiFileWrite = ConfigGetConfig(NIN_CFG_SLIPPI_FILE_WRITE);
 	u32 UseUSB = ConfigGetUseUSB(); // Returns 0 for SD, 1 for USB
 	SetDiskFunctions(UseUSB);
 
-	BootStatus(2, 0, 0);
 
 	bool shouldBootUsb = UseUSB || SlippiFileWrite;
 	bool shouldBootSd = !UseUSB || SlippiFileWrite;
@@ -206,7 +229,11 @@ int _main( int argc, char *argv[] )
 		else //will shutdown on fail
 			RealDI_Init();
 	}
-	BootStatus(3, 0, 0);
+
+/* STORAGE_MOUNT BOOT STAGE
+ * Use fatfs to [conditionally] mount any SD/USB storage devices.
+ */
+	BootStatus(STORAGE_MOUNT, 0, 0);
 
 	s32 res;
 	// Mount SD card
@@ -237,9 +264,17 @@ int _main( int argc, char *argv[] )
 		}
 	}
 
-	BootStatus(4, 0, 0);
+/* BOOT_STATUS_4 BOOT STAGE
+ * Unused right now. I think this is just some vestigial code.
+ */
+	BootStatus(BOOT_STATUS_4, 0, 0);
 
-	BootStatus(5, 0, 0);
+
+/* STORAGE_CHECK BOOT STAGE
+ * Tests disk accesses on the main drive.
+ * Presumably, as long as we don't return FR_DISK_ERR, everything is OK?
+ */
+	BootStatus(STORAGE_CHECK, 0, 0);
 
 	dbgprintf("About to load bladie\r\n");
 
@@ -270,53 +305,87 @@ int _main( int argc, char *argv[] )
 	if(!UseUSB) //Use FAT values for SD
 		s_cnt = devices[0]->n_fatent * devices[0]->csize;
 
-	BootStatus(6, s_size, s_cnt);
+/* NETWORK_INIT BOOT STAGE.
+ * If a user has Slippi networking enabled, initialize the network.
+ * Then, spawn the Slippi networking threads.
+ */
+	u32 UseNetwork = ConfigGetConfig(NIN_CFG_NETWORK);
+	if (UseNetwork == 1)
+	{
+		BootStatus(NETWORK_INIT, s_size, s_cnt);
+		NCDInit();
+		NetworkStarted = 1;
+		SlippiNetworkInit();
+#ifdef SLIPPI_DEBUG
+		SlippiDebugInit();
+#endif
+		SlippiNetworkBroadcastInit();
+	}
 
-	BootStatus(7, s_size, s_cnt);
+
+/* CONFIG_INIT BOOT STAGE
+ * Double check that we've read a copy of the Nintendont config into memory
+ * (this should be handled by the loader). If it doesn't exist, read it into 
+ * memory from the main drive.
+ */
+	BootStatus(CONFIG_INIT, s_size, s_cnt);
 	ConfigInit();
 
 	if (ConfigGetConfig(NIN_CFG_LOG))
 		SDisInit = 1;  // Looks okay after threading fix
 	dbgprintf("Game path: %s\r\n", ConfigGetGamePath());
 
-	u32 UseNetwork = ConfigGetConfig(NIN_CFG_NETWORK);
+/* BOOT_STATUS_8 BOOT STAGE
+ * I don't know what this does. Clears out these regions in memory?
+ */
+	BootStatus(BOOT_STATUS_8, s_size, s_cnt);
 
-	BootStatus(8, s_size, s_cnt);
-
+	// ???
 	memset32((void*)RESET_STATUS, 0, 0x20);
 	sync_after_write((void*)RESET_STATUS, 0x20);
 
+	// Clear PadBuff data (???)
 	memset32((void*)0x13003100, 0, 0x30);
 	sync_after_write((void*)0x13003100, 0x30);
+
+	// Relevant to patches for OSReport output? 
 	memset32((void*)0x13160000, 0, 0x20);
 	sync_after_write((void*)0x13160000, 0x20);
 
+	// Clear fake interrupt regions
 	memset32((void*)0x13026500, 0, 0x100);
 	sync_after_write((void*)0x13026500, 0x100);
 
-	BootStatus(9, s_size, s_cnt);
+/* DI_INIT BOOT STAGE
+ * Spawn the DI thread, then DI thread initialization. 
+ */
+	BootStatus(DI_INIT, s_size, s_cnt);
 
 	DIRegister();
-	DI_Thread = do_thread_create(DIReadThread, ((u32*)&__di_stack_addr), ((u32)(&__di_stack_size)), 0x78);
+	DI_Thread = do_thread_create(DIReadThread, 
+		((u32*)&__di_stack_addr), 
+		((u32)(&__di_stack_size)), 
+		0x78
+	);
 	thread_continue(DI_Thread);
-
 	DIinit(true);
 
-	BootStatus(10, s_size, s_cnt);
+/* CARD_INIT BOOT STAGE
+ * Initialize TRI Arcade. Initializes EXI/memcard emulation?
+ */
+	BootStatus(CARD_INIT, s_size, s_cnt);
 
 	TRIInit();
-
 	EXIInit();
 
-	BootStatus(11, s_size, s_cnt);
+/* BOOT_STATUS_11 BOOT STAGE
+ * Initialize SI and streaming audio. Don't know what PatchInit() does.
+ */
+	BootStatus(BOOT_STATUS_11, s_size, s_cnt);
 
 	SIInit();
 	StreamInit();
-
 	PatchInit();
-
-	dbgprintf("Main Thread ID: %d\r\n", thread_get_id());
-
 	SlippiMemoryInit();
 
 	// If we are using USB for writting slp files and USB is not the
@@ -324,26 +393,35 @@ int _main( int argc, char *argv[] )
 	if (SlippiFileWrite == 1)
 		SlippiFileWriterInit();
 
-//Tell PPC side we are ready!
+/* KERNEL_RUNNING BOOT STAGE
+ * Signal the loader to start booting a game in PPC-world.
+ * After this, the kernel waits in the main loop (later in this function).
+ * It's exactly not clear what the mdelay()'s are here for.
+ */
+	//Tell PPC side we are ready!
 	cc_ahbMemFlush(1);
 	mdelay(1000);
-	BootStatus(0xdeadbeef, s_size, s_cnt);
+	BootStatus(KERNEL_RUNNING, s_size, s_cnt);
 	mdelay(1000); //wait before hw flag changes
 	dbgprintf("Kernel Start\r\n");
+	dbgprintf("Main Thread ID: %d\r\n", thread_get_id());
+
 #ifdef USE_OSREPORTDM
 	write32( 0x1860, 0xdeadbeef );	// Clear OSReport area
 	sync_after_write((void*)0x1860, 0x20);
 #endif
+
 	u32 Now = read32(HW_TIMER);
-	u32 NCDTimer = Now;
 	u32 PADTimer = Now;
 	u32 DiscChangeTimer = Now;
 	u32 ResetTimer = Now;
 	u32 InterruptTimer = Now;
+
 #ifdef PERFMON
 	u32 loopCnt = 0;
 	u32 loopPrintTimer = Now;
 #endif
+
 	USBReadTimer = Now;
 	u32 Reset = 0;
 	bool SaveCard = false;
@@ -397,9 +475,11 @@ int _main( int argc, char *argv[] )
 		mask32(0xd8006a8, 0, 2);
 	}
 
+	// Main kernel loop
 	while (1)
 	{
 		_ahbMemFlush(0);
+
 #ifdef PERFMON
 		loopCnt++;
 		if(TimerDiffTicks(loopPrintTimer) > 1898437)
@@ -409,6 +489,7 @@ int _main( int argc, char *argv[] )
 			loopCnt = 0;
 		}
 #endif
+
 		//Does interrupts again if needed
 		if(TimerDiffTicks(InterruptTimer) > 15820) //about 120 times a second
 		{
@@ -418,16 +499,19 @@ int _main( int argc, char *argv[] )
 				write32(HW_IPC_ARMCTRL, 8); //throw irq
 			InterruptTimer = read32(HW_TIMER);
 		}
-		#ifdef PATCHALL
+
+#ifdef PATCHALL
 		if (EXI_IRQ == true)
 		{
 			if(EXICheckTimer())
 				EXIInterrupt();
 		}
-		#endif
+#endif
+
 		if (SI_IRQ != 0)
 		{
-			if ((TimerDiffTicks(PADTimer) > 7910) || (SI_IRQ & 0x2))	// about 240 times a second
+			// About 240 times a second
+			if ((TimerDiffTicks(PADTimer) > 7910) || (SI_IRQ & 0x2))
 			{
 				SIInterrupt();
 				PADTimer = read32(HW_TIMER);
@@ -461,58 +545,6 @@ int _main( int argc, char *argv[] )
 		else /* No device I/O so make sure this stays updated */
 			GetCurrentTime();
 		udelay(20); //wait for other threads
-
-
-		/* Delay network initialization by ~30 seconds. We may need to
-		 * fine tune this, or perhaps, experiment with initializing
-		 * this before Melee boots. However, we have observed that
-		 * very early initialization of networking with libogc in the
-		 * Nintendont loader seems to interfere [often, randomly] with
-		 * Melee at boot-time and causing PPC-land to crash, sometimes
-		 * before OSReport can hand us back output via ndebug.log. The
-		 * hypothesis is that time on-CPU during boot is critical for
-		 * the IOS thread[s] responsible for servicing disc reads.
-		 *
-		 * This is a naive, experimental implementation.
-		 *
-		 * ~meta
-		 */
-
-		// Initialize 8040a5a8 with a string to print w/ UnclePunch Gecko code
-		if ( (TimerDiffSeconds(NCDTimer) > 3) && (SlippiDbgStringInit == 0) ) {
-			SlippiDbgStringInit = 1;
-		}
-
-		/* Initialize low-level networking and the TCP/IP stack, then
-		 * dispatch the Slippi network thread. 
-		 *
-		 * 1 and 3 seconds seems a low enough delay, although it seems
-		 * to initialize before Melee boots (too early for ppc_msg calls
-		 * to do anything)
-		 */
-
-		if ((UseNetwork == 1) && (NetworkStarted == 0))
-		{
-			if (TimerDiffSeconds(NCDTimer) > 2) {
-				NCDInit();
-				NetworkStarted = 1;
-			}
-		}
-
-		// Dispatch the Slippi Network thread (the server)
-		if ((UseNetwork == 1) && (NetworkStarted == 1) && (SlippiServerStarted == 0))
-		{
-			if (TimerDiffSeconds(NCDTimer) > 5) {
-				ret = SlippiNetworkInit();
-				dbgprintf("SlippiNetworkInit returned %d\r\n", ret);
-#ifdef SLIPPI_DEBUG
-				ret = SlippiDebugInit();
-#endif
-				ret = SlippiNetworkBroadcastInit();
-				dbgprintf("SlippiNetworkBroadcastInit returned %d\r\n", ret);
-			}
-		}
-
 
 		if( WaitForRealDisc == 1 )
 		{
@@ -628,7 +660,8 @@ int _main( int argc, char *argv[] )
 			#endif
 			Shutdown();
 		}
-		#ifdef USE_OSREPORTDM
+
+#ifdef USE_OSREPORTDM
 		sync_before_read( (void*)0x1860, 0x20 );
 		if( read32(0x1860) != 0xdeadbeef )
 		{
@@ -645,7 +678,8 @@ int _main( int argc, char *argv[] )
 			write32(0x1860, 0xdeadbeef);
 			sync_after_write( (void*)0x1860, 0x20 );
 		}
-		#endif
+#endif
+
 		cc_ahbMemFlush(1);
 	}
 	HIDClose();
