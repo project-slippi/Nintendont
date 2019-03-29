@@ -118,6 +118,7 @@ u32 IsN64Emu = 0;
 #include "gecko/g_tournament.h"	// Tournament codes: neutral spawns, nametag hide
 #include "gecko/g_pal.h"	// Convert NTSC to PAL
 #include "gecko/g_qol.h"	// Salty runback/KO star indicates previous winner
+#include "gecko/g_frozen.h" // Frozen stadium toggle
 
 // Boundaries of the tournament mode region in NTSC-U v1.02
 #define CODELIST_TOURNAMENT_BASE	0x001910E0
@@ -3435,6 +3436,12 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 			memcpy((void*)gct_cursor, g_tournament, g_tournament_size);
 			sync_after_write((void*)gct_cursor, g_tournament_size);
 			gct_cursor += g_tournament_size;
+		}
+		if (ConfigGetConfig(NIN_CFG_MELEE_FROZEN))
+		{
+			memcpy((void*)gct_cursor, g_frozen, g_frozen_size);
+			sync_after_write((void*)gct_cursor, g_frozen_size);
+			gct_cursor += g_frozen_size;
 		}
 
 		dbgprintf("Patch:Apply controller fix at 0x%08x\r\n", gct_cursor);
