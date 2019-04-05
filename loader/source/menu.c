@@ -838,16 +838,19 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 				const u32 color = DiscFormatColors[gi->Flags & GIFLAG_FORMAT_MASK];
 				PrintFormat(DEFAULT_SIZE, color, x, MENU_POS_Y + 20*4+5, "%s", gi->Path);
 
-				if (strncmp(gi->ID, "GALE01", 6) != 0) {
+				bool isGALE = (strncmp(gi->ID, "GALE01", 6) == 0);
+				bool isRev2 = (gi->Revision == 0x02);
+				if (!isGALE || (isGALE && !isRev2)) {
 					PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11),"[!] WARNING, PLEASE READ ");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Project Slippi Nintendont");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "supports the NTSC v1.02");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "version of Melee (GALE01).");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "This is not NTSC v1.02.");
 
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(16), "This game may not behave");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "correctly. Please use the");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "vanilla Nintendont build");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(19), "for the best experience.");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "This game may not behave");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "correctly. Please use the");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(19), "vanilla Nintendont build");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(20), "for the best experience.");
 				}
 			}
 		}
@@ -1092,9 +1095,19 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 					"• Gold indicates last winner",
 					"• CSS Cursor Position fix",
 					"• Disable FoD for doubles",
+					"• D-Up for rumble on CSS",
 					NULL
 				};
 				return desc_melee_qol;
+			}
+			case 9: {
+				// Frozen PS
+				static const char *desc_melee_frozen[] = {
+					"Pokemon Stadium will have",
+					"no transformations",
+					NULL
+				};
+				return desc_melee_frozen;
 			}
 
 			default:
@@ -1124,7 +1137,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 
 	// Number of entries in the right settings column. Remember to change this
 	// when adding any toggleable settings to the right-hand part of the menu.
-	int col2Length = 9;
+	int col2Length = 10;
 
 	if (FPAD_Down_Repeat(ctx))
 	{
@@ -1456,6 +1469,12 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					ncfg->Config ^= (NIN_CFG_MELEE_QOL);
 					ctx->redraw = true;
 					break;
+				case 9:
+					// QOL
+					ctx->saveSettings = true;
+					ncfg->Config ^= (NIN_CFG_MELEE_FROZEN);
+					ctx->redraw = true;
+					break;
 				default:
 					break;
 			}
@@ -1639,6 +1658,11 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 				"%-18s:%-4s", "Quality of Life", (ncfg->Config & (NIN_CFG_MELEE_QOL)) ? "On" : "Off");
 		ListLoopIndex++;
 
+		// Frozen Toggle
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+				"%-18s:%-4s", "Frozen PS", (ncfg->Config & (NIN_CFG_MELEE_FROZEN)) ? "On" : "Off");
+		ListLoopIndex++;
+
 
 		// Draw the cursor.
 		if (ctx->settings.settingPart == 0) {
@@ -1654,7 +1678,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		const char *const *desc = GetSettingsDescription(ctx);
 		if (desc != NULL)
 		{
-			int line_num = 10;
+			int line_num = 11;
 			do {
 				if (**desc != 0)
 				{

@@ -234,7 +234,7 @@ s32 checkAlive(void)
 		return 0;
 
 	// Only check alive if we haven't detected any communication
-	if (TimerDiffSeconds(client_alive_ts) < 3)
+	if (TimerDiffSeconds(client_alive_ts) < 2)
 		return 0;
 
 	s32 res;
