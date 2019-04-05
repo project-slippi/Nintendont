@@ -838,16 +838,19 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 				const u32 color = DiscFormatColors[gi->Flags & GIFLAG_FORMAT_MASK];
 				PrintFormat(DEFAULT_SIZE, color, x, MENU_POS_Y + 20*4+5, "%s", gi->Path);
 
-				if (strncmp(gi->ID, "GALE01", 6) != 0) {
+				bool isGALE = (strncmp(gi->ID, "GALE01", 6) == 0);
+				bool isRev2 = (gi->Revision == 0x02);
+				if (!isGALE || (isGALE && !isRev2)) {
 					PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11),"[!] WARNING, PLEASE READ ");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Project Slippi Nintendont");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "supports the NTSC v1.02");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "version of Melee (GALE01).");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "This is not NTSC v1.02.");
 
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(16), "This game may not behave");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "correctly. Please use the");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "vanilla Nintendont build");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(19), "for the best experience.");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(17), "This game may not behave");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(18), "correctly. Please use the");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(19), "vanilla Nintendont build");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X,SettingY(20), "for the best experience.");
 				}
 			}
 		}
