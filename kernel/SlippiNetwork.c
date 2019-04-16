@@ -29,8 +29,8 @@ extern char __slippi_network_stack_addr, __slippi_network_stack_size;
 static u32 SlippiNetworkHandlerThread(void *arg);
 
 // Server state
-static int server_sock __attribute__((aligned(32)));
-static struct sockaddr_in server __attribute__((aligned(32))) = {
+static int server_sock ALIGNED(32);
+static struct sockaddr_in server ALIGNED(32) = {
 	.sin_family	= AF_INET,
 	.sin_port	= 666,
 	{
@@ -39,13 +39,26 @@ static struct sockaddr_in server __attribute__((aligned(32))) = {
 };
 
 // Client state
-static int client_sock __attribute__((aligned(32)));
+static int client_sock ALIGNED(32);
 static u32 client_alive_ts;
+
+// Structure representing the state of some remote client
+struct SlippiClient
+{
+	s32 socket;
+	char pad1[0x1c];
+	u32 timestamp;
+	char pad2[0x1c];
+	u32 token;
+	char pad3[0x1c];
+	u64 cursor;
+	char pad4[0x18];
+};
+struct SlippiClient currentClient ALIGNED(32);
 
 // Global network state
 extern s32 top_fd;		// from kernel/net.c
 u32 SlippiServerStarted = 0;	// used by kernel/main.c
-
 
 /* SlippiNetworkInit()
  * Dispatch the server thread. This should only be run once in kernel/main.c
@@ -85,7 +98,7 @@ s32 startServer()
 	{
 		close(top_fd, server_sock);
 		server_sock = -1;
-		dbgprintf("bind() failed with: %d\r\n", res);
+		dbgprintf("WARN: bind() failed with: %d\r\n", res);
 		return res;
 	}
 	
@@ -94,44 +107,104 @@ s32 startServer()
 	{
 		close(top_fd, server_sock);
 		server_sock = -1;
-		dbgprintf("listen() failed with: %d\r\n", res);
+		dbgprintf("WARN: listen() failed with: %d\r\n", res);
 		return res;
 	}
 	return 0;
 }
 
 
+/* waitForHandshake()
+ * Poll the client socket with a 5s timeout, expecting a message from the client.
+ * If the socket is readable (we received a message), return true.
+ * Otherwise, if the 5s elapse without a message, return false.
+ */
+s32 waitForHandshake(s32 socket)
+{
+	s32 res;
+	STACK_ALIGN(struct pollsd, client_poll, 1, 32);
+
+	// If the socket is readable, POLLIN is written to revents
+	client_poll[0].socket = client_sock;
+	client_poll[0].events = POLLIN;
+	res = poll(top_fd, client_poll, 1, 5000);
+
+	// If poll() returns an error, do something to handle it
+	if (res < 0)
+	{
+		dbgprintf("WARN: poll() returned < 0 (%08x)\r\n", res);
+	}
+
+	dbgprintf("client_poll[0].revents=%08x\r\n", client_poll[0].revents);
+	if ((client_poll[0].revents & POLLIN))
+		return 1;
+	else
+		return 0;
+}
+
+
 /* listenForClient()
- * Check the status of the client socket and potentially accept a client.
+ * If no client is connected, block until a client to connects to the server.
+ * If a client immediately sends us a message, upgrade them to the new interface.
+ * Otherwise, assume the client is old and fallback to old behaviour.
  */
 void listenForClient()
 {
+	s32 res;
+	STACK_ALIGN(u32, token, 1, 32);
+
 	// We already have a client
 	if (client_sock >= 0)
 		return;
 
-	// Try to accept a client
+	// Block here until we accept a client connection
 	client_sock = accept(top_fd, server_sock);
+
 	if (client_sock >= 0)
 	{
+		dbgprintf("Client connection detected, waiting for message...\r\n");
+
+		// If the client sends a message, upgrade them to the new interface
+		res = waitForHandshake(client_sock);
+		if (res)
+		{
+			res = recvfrom(top_fd, client_sock, token, 4, 0);
+			if (res == 4)
+				dbgprintf("Got %d bytes from client; new interface!\r\n", res);
+			else
+				dbgprintf("Got invalid number of bytes from client (%d)\r\n", res);
+
+		}
+		// Otherwise, fallback to the old interface
+		else
+		{
+			dbgprintf("No message; fallback to old interface\r\n", res);
+		}
+
+
 		int flags = 1;
-		s32 optRes = setsockopt(top_fd, client_sock, IPPROTO_TCP,
-			TCP_NODELAY, (void *)&flags, sizeof(flags));
-		dbgprintf("[TCP_NODELAY] Client setsockopt result: %d\r\n", optRes);
+		res = setsockopt(top_fd, client_sock, IPPROTO_TCP, TCP_NODELAY,
+				(void *)&flags, sizeof(flags));
+		dbgprintf("[TCP_NODELAY] Client setsockopt result: %d\r\n", res);
 
-		dbgprintf("Client connection detected\r\n");
 		client_alive_ts = read32(HW_TIMER);
-	} else {
-		// dbgprintf("Client sock accept failure: %d\r\n", client_sock);
-
+	}
+	// Otherwise, accept() returned some error - kill the server here?
+	else
+	{
 		// Close server socket such that it can be re-initialized
 		// TODO: When eth is disconnected, this still doesn't bring the connection back
 		// TODO: server_sock keeps getting a -39. Figure out how to solve this
 		close(top_fd, server_sock);
 		server_sock = -1;
+		dbgprintf("WARN: accept() returned an error: %d\r\n", client_sock);
 	}
 }
 
+
+/* hangUpConnection()
+ * Close our connection with the current client.
+ */
 void hangUpConnection() {
 	// The error codes I have seen so far are -39 (ethernet disconnected) and -56 (client hung up)
 	// Currently disable this timer thing because it doesn't seem like we can recover from them
@@ -146,6 +219,7 @@ void hangUpConnection() {
 	reset_broadcast_timer();
 }
 
+
 /* handleFileTransfer()
  * Deal with sending Slippi data over the network:
  *
@@ -159,9 +233,8 @@ static u64 memReadPos = 0;
 static SlpGameReader reader;
 s32 handleFileTransfer()
 {
-	int status = getConnectionStatus();
-
 	// Do nothing if we aren't connected to a client
+	int status = getConnectionStatus();
 	if (status != CONN_STATUS_CONNECTED)
 		return 0;
 
@@ -178,12 +251,10 @@ s32 handleFileTransfer()
 		// For specific errors, bytes will still be read. Not returning to deal with those
 	}
 
-	// dbgprintf("Checking if there's data to transfer...\r\n");
-
+	// If there's no new data to send, just return
 	if (reader.lastReadResult.bytesRead == 0)
 		return 0;
 
-	// sendto takes an average of around 10 ms to return. Seems to range from 3-30 ms or so
 	s32 res = sendto(top_fd, client_sock, readBuf, reader.lastReadResult.bytesRead, 0);
 
 	// Naive client hangup detection
@@ -204,7 +275,7 @@ s32 handleFileTransfer()
 
 
 /* getConnectionStatus()
- * Return the status of the networking thread.
+ * Return the current status of the networking thread.
  */
 int getConnectionStatus()
 {
@@ -224,7 +295,7 @@ int getConnectionStatus()
  * sendto() here returns some error, this probably indicates that we can stop
  * talking to the current client and reset the socket.
  */
-static char alive_msg[] __attribute__((aligned(32))) = "HELO";
+static char alive_msg[] ALIGNED(32) = "HELO";
 s32 checkAlive(void)
 {
 	int status = getConnectionStatus();
@@ -261,6 +332,7 @@ s32 checkAlive(void)
 
 	return 0;
 }
+
 
 /* SlippiNetworkHandlerThread()
  * This is the main loop for the server.

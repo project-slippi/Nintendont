@@ -1,12 +1,24 @@
+/* SlippiMemory.c
+ * Defines a circular buffer ('SlipMem') used to store replay data until it
+ * has been consumed, or until it has been overwritten with new replay data.
+ * Functions for managing the buffer should live in this file.
+ *
+ *	Current `SlipMem` memory region: 0x12B80000 - 0x12E80000
+ */
+
 #include "SlippiMemory.h"
 #include "common.h"
 #include "debug.h"
 #include "string.h"
 
-// Memory Settings: Let Slippi use 0x12B80000 - 0x12E80000
-#define SlipMemClear() memset32(SlipMem, 0, SlipMemSize)
-u8 *SlipMem = (u8 *)0x12B80000;
-u32 SlipMemSize = 0x00300000;
+// Dimensions for the circular buffer
+#define SLIPMEM_SIZE	0x00300000
+#define SLIPMEM_BASE	0x12b80000
+#define SLIPMEM_TAIL	(SLIPMEM_HEAD + SLIPMEM_SIZE)
+#define SlipMemClear()	memset32(SlipMem, 0, SLIPMEM_SIZE)
+
+// Global state: pointer to the buffer, and a write cursor
+u8 *SlipMem = (u8*)SLIPMEM_BASE;
 volatile u64 SlipMemCursor = 0x0000000000000000;
 
 u16 getPayloadSize(SlpGameReader *reader, u8 command);
@@ -14,36 +26,48 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos);
 void resetMetadata(SlpGameReader *reader);
 void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength);
 
-/* This should only be dispatched once in kernel/main.c after NCDInit() has
- * actually brought up the networking stack and we have connectivity. */
+
+/* SlippiMemoryInit()
+ * Zero out the buffer during boot - called from kernel/main.c
+ */
 void SlippiMemoryInit()
 {
 	SlipMemClear();
 }
 
+
+/* SlippiMemoryWrite()
+ * Put some data onto the circular buffer.
+ */
 void SlippiMemoryWrite(const u8 *buf, u32 len)
 {
-	u32 normalizedCursor = SlipMemCursor % SlipMemSize;
+	u32 normalizedCursor = SlipMemCursor % SLIPMEM_SIZE;
 
-	// Handle overflow logic. Once we are going to overflow, wrap around to start
-	// of memory region
-	if ((normalizedCursor + len) > SlipMemSize)
+	// Wrap around the buffer if the write would overflow
+	if ((normalizedCursor + len) > SLIPMEM_SIZE)
 	{
-		// First, fill out the remaining memory
-		u32 fillMemLen = SlipMemSize - normalizedCursor;
+		u32 fillMemLen = SLIPMEM_SIZE - normalizedCursor;
 		memcpy(&SlipMem[normalizedCursor], buf, fillMemLen);
-
-		// Second, write the rest that hasn't been written to the start
 		memcpy(SlipMem, &buf[fillMemLen], len - fillMemLen);
-
-		SlipMemCursor += len;
-		return;
 	}
+	// Otherwise, just write directly into the buffer
+	else
+		memcpy(&SlipMem[normalizedCursor], buf, len);
 
-	memcpy(&SlipMem[normalizedCursor], buf, len);
+	// Always increment the global write cursor
 	SlipMemCursor += len;
 }
 
+
+/* SlippiMemoryRead()
+ * Consume some data from the circular buffer.
+ *
+ * This will continuously reads some Slippi commands from the buffer until:
+ *	(a) Our read cursor catches up to the global write cursor
+ *	(b) We've read a GAME_END message (there are no more messages)
+ *	(c) We are going to overflow the user-provided buffer (`buf`)
+ *	(d) We need to return an error because something unexpected happened
+ */
 SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 readPos)
 {
 	// Reset previous read result
@@ -51,22 +75,22 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 	reader->lastReadResult.isGameEnd = false;
 	reader->lastReadResult.isNewGame = false;
 
-	SlpMemError errCode = SLP_MEM_OK;
-
-	// Return error code on overflow read
+	// Return an error code if the read will overflow
 	u64 posDiff = SlipMemCursor - readPos;
-	if (posDiff >= SlipMemSize)
+	if (posDiff >= SLIPMEM_SIZE)
 		return SLP_READ_OVERFLOW;
 
 	u32 bytesRead = 0;
+	SlpMemError errCode = SLP_MEM_OK;
+
+	// Only read messages if we're behind the global write cursor
 	while (readPos != SlipMemCursor)
 	{
-		u32 normalizedReadPos = readPos % SlipMemSize;
-		// dbgprintf("Read position: 0x%X\r\n", normalizedReadPos);
-
+		// Update our read cursor and read the current command
+		u32 normalizedReadPos = readPos % SLIPMEM_SIZE;
 		u8 command = SlipMem[normalizedReadPos];
 
-		// Special case handling: Unnexpected new game message - shouldn't happen
+		// Throw an error if RECEIVE_COMMANDS is received out-of-order
 		if (bytesRead > 0 && command == SLP_CMD_RECEIVE_COMMANDS)
 		{
 			dbgprintf("WARN: Unnexpected new game message\r\n");
@@ -74,7 +98,7 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 			break;
 		}
 
-		// Detect new file
+		// Detect a new recording session; setup payload sizes
 		if (command == SLP_CMD_RECEIVE_COMMANDS)
 		{
 			reader->lastReadResult.isNewGame = true;
@@ -82,9 +106,10 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 			setPayloadSizes(reader, normalizedReadPos);
 		}
 
+		// Look up the size of the current command
 		u16 payloadSize = getPayloadSize(reader, command);
 
-		// Special case handling: Payload size not found for command - shouldn't happen
+		// Stop reading and return an error if we can't get the size
 		if (payloadSize == 0)
 		{
 			dbgprintf("WARN: Payload size not detected. Read: %02X, ReadPos: %X\r\n", command, readPos);
@@ -92,38 +117,32 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 			break;
 		}
 
+		// Calculate the number of bytes to read from the buffer
 		u16 bytesToRead = payloadSize + 1;
 
-		// Special case handling: buffer is full
+		// Stop reading if we are going to overflow the user's buffer
 		if ((bytesRead + bytesToRead) > bufLen)
 			break;
 
-		if ((normalizedReadPos + bytesToRead) > SlipMemSize)
+		// Wrap around the buffer if the read would overflow
+		if ((normalizedReadPos + bytesToRead) > SLIPMEM_SIZE)
 		{
-			// This is the overflow case, here we need to do two memcpy calls
-			// dbgprintf("Read overflow detected...\r\n");
-			// First, fill out the remaining memory
-			u32 fillMemLen = SlipMemSize - normalizedReadPos;
+			u32 fillMemLen = SLIPMEM_SIZE - normalizedReadPos;
 			memcpy(&buf[bytesRead], &SlipMem[normalizedReadPos], fillMemLen);
-
-			// Second, write the rest that hasn't been written to the start
 			memcpy(&buf[bytesRead + fillMemLen], SlipMem, bytesToRead - fillMemLen);
 		}
+		// Otherwise, just read directly from the buffer
 		else
-		{
-			// Copy payload data into buffer. We don't need to sync_after_write because
-			// the memory will be read from the ARM side
 			memcpy(&buf[bytesRead], &SlipMem[normalizedReadPos], bytesToRead);
-		}
 
-		// Handle updating metadata
+		// If this is a POST_FRAME message, update the replay metadata
 		updateMetadata(reader, &buf[bytesRead], bytesToRead);
 
 		// Increment both read positions
 		readPos += bytesToRead;
 		bytesRead += bytesToRead;
 
-		// Special case handling: game end message processed
+		// Stop reading if we've processed GAME_END (the last message)
 		if (command == SLP_CMD_RECEIVE_GAME_END)
 		{
 			reader->lastReadResult.isGameEnd = true;
@@ -131,17 +150,26 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 		}
 	}
 
+	// Save the read cursor and number of bytes we've read
 	reader->lastReadPos = readPos;
 	reader->lastReadResult.bytesRead = bytesRead;
 
 	return errCode;
 }
 
+
+/* SlippiRestoreReadPos()
+ * Returns the current position of the global write cursor.
+ */
 u64 SlippiRestoreReadPos()
 {
 	return SlipMemCursor;
 }
 
+
+/* resetMetadata()
+ * Clear out the current metadata.
+ */
 void resetMetadata(SlpGameReader *reader)
 {
 	// TODO: Test this
@@ -149,6 +177,10 @@ void resetMetadata(SlpGameReader *reader)
 	reader->metadata = freshMetadata;
 }
 
+
+/* updateMetadata()
+ * Update the latest frame number in metadata after a POST_FRAME message.
+ */
 void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength)
 {
 	u8 command = message[0];
@@ -158,7 +190,8 @@ void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength)
 		return;
 
 	// Keep track of last frame
-	reader->metadata.lastFrame = message[1] << 24 | message[2] << 16 | message[3] << 8 | message[4];
+	reader->metadata.lastFrame = message[1] << 24 | message[2] << 16 |
+				     message[3] << 8  | message[4];
 
 	// TODO: Add character usage
 	// Keep track of character usage
@@ -170,6 +203,10 @@ void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength)
 	// characterUsage[playerIndex][internalCharacterId] += 1;
 }
 
+
+/* setPayloadSizes()
+ * Process a RECEIVE_COMMANDS message and set the payload sizes.
+ */
 void setPayloadSizes(SlpGameReader *reader, u32 readPos)
 {
 	// Clear previous payloadSizes
@@ -182,6 +219,7 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos)
 	// Will always be index zero
 	reader->payloadSizes[0] = length;
 
+	// Each structure is three bytes (u8 command, u16 size)
 	int i = 1;
 	while (i < length)
 	{
@@ -190,12 +228,17 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos)
 		u16 commandPayloadSize = payload[i + 1] << 8 | payload[i + 2];
 		reader->payloadSizes[commandByte - SLP_CMD_RECEIVE_COMMANDS] = commandPayloadSize;
 
-		// dbgprintf("Index: 0x%02X, Size: 0x%02X\r\n", commandByte - SLP_CMD_RECEIVE_COMMANDS, commandPayloadSize);
+		// dbgprintf("Index: 0x%02X, Size: 0x%02X\r\n",
+		//	commandByte - SLP_CMD_RECEIVE_COMMANDS, commandPayloadSize);
 
 		i += 3;
 	}
 }
 
+
+/* getPayloadSize()
+ * Return the size of a particular command.
+ */
 u16 getPayloadSize(SlpGameReader *reader, u8 command)
 {
 	int payloadSizesIndex = command - SLP_CMD_RECEIVE_COMMANDS;
