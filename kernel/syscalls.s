@@ -271,6 +271,12 @@ sha1:
 	.long 0xe6000cf0
 	bx lr
 
+.global IOSC_GenerateRand
+.type IOSC_GenerateRand STT_FUNC
+IOSC_GenerateRand:
+	.long 0xe6000e70
+	bx lr
+
 	.global svc_write
 	.type   svc_write STT_FUNC
 svc_write:

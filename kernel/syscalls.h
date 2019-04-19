@@ -110,5 +110,6 @@ s32 syscall_5a( char *Path );
 
 
 s32 sha1( void *SHACarry, void* data, u32 len, u32 SHAMode, void *hash);
+s32 IOSC_GenerateRand(u8 *buffer, u32 len);
 
 #endif

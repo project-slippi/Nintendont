@@ -13,52 +13,46 @@
 
 #include "SlippiNetworkBroadcast.h"
 
-// Game can transfer at most 784 bytes / frame
-// That means 4704 bytes every 100 ms. Let's aim to handle
-// double that, making our read buffer 10000 bytes for 100 ms.
-// The cycle time was lowered to 11 ms (sendto takes about 10ms
-// on average), Because of this I lowered the buffer from what
-// it needed to be at 100 ms
-#define READ_BUF_SIZE 2500
-#define THREAD_CYCLE_TIME_MS 1
-#define CLIENT_TERMINATE_S 10
+/* Game can transfer at most 784 bytes / frame.
+ *
+ * That means 4704 bytes every 100 ms. Let's aim to handle double that, making
+ * our read buffer 10000 bytes for 100 ms. The cycle time was lowered to 11 ms
+ * (sendto takes about 10ms on average). Because of this I lowered the buffer
+ * from what it needed to be at 100 ms
+ */
+
+#define READ_BUF_SIZE		2500
+#define THREAD_CYCLE_TIME_MS	1	// Thread loop interval (ms)
+
+#define HANDSHAKE_TIMEOUT_MS	5000	// Handshake timeout (ms)
+#define CHECK_ALIVE_S		2	// Interval for HELO packets (s)
 
 // Thread stuff
 static u32 SlippiNetwork_Thread;
 extern char __slippi_network_stack_addr, __slippi_network_stack_size;
 static u32 SlippiNetworkHandlerThread(void *arg);
 
-// Server state
+// State of the server running in this thread
+#define SERVER_PORT	666
 static int server_sock ALIGNED(32);
 static struct sockaddr_in server ALIGNED(32) = {
 	.sin_family	= AF_INET,
-	.sin_port	= 666,
+	.sin_port	= SERVER_PORT,
 	{
 		.s_addr	= INADDR_ANY,
 	},
 };
 
-// Client state
-static int client_sock ALIGNED(32);
-static u32 client_alive_ts;
+// State of the currently-connected client
+struct SlippiClient client ALIGNED(32);
 
-// Structure representing the state of some remote client
-struct SlippiClient
-{
-	s32 socket;
-	char pad1[0x1c];
-	u32 timestamp;
-	char pad2[0x1c];
-	u32 token;
-	char pad3[0x1c];
-	u64 cursor;
-	char pad4[0x18];
-};
-struct SlippiClient currentClient ALIGNED(32);
+// Saved state of the previous client
+struct SlippiClient client_prev ALIGNED(32);
 
 // Global network state
-extern s32 top_fd;		// from kernel/net.c
-u32 SlippiServerStarted = 0;	// used by kernel/main.c
+extern s32 top_fd;			// from kernel/net.c
+u32 SlippiServerStarted = 0;		// used by kernel/main.c
+
 
 /* SlippiNetworkInit()
  * Dispatch the server thread. This should only be run once in kernel/main.c
@@ -69,7 +63,7 @@ void SlippiNetworkShutdown() { thread_cancel(SlippiNetwork_Thread, 0); }
 s32 SlippiNetworkInit()
 {
 	server_sock = -1;
-	client_sock = -1;
+	client.socket = -1;
 
 	dbgprintf("net_thread is starting ...\r\n");
 	SlippiNetwork_Thread = do_thread_create(
@@ -84,138 +78,204 @@ s32 SlippiNetworkInit()
 
 
 /* startServer()
- * Create a new server socket, bind, then start listening.
+ * Create a new server socket, bind to it, then start listening on it.
+ * If bind() or listen() return some error, increment the retry counter and
+ * reset the server state.
+ *
+ * TODO: Probably shut down the networking thread if we fail to initialize.
  */
+void stopServer() { close(top_fd, server_sock); server_sock = -1; }
+#define MAX_SERVER_RETRIES	10
+static int server_retries = 0;
 s32 startServer()
 {
 	s32 res;
 
+	// If things are broken, stop trying to initialize the server
+	if (server_retries >= MAX_SERVER_RETRIES)
+	{
+		// Maybe shutdown the network thread here?
+		dbgprintf("WARN: MAX_SERVER_RETRIES exceeded, giving up\r\n");
+		return -1;
+	}
+
 	server_sock = socket(top_fd, AF_INET, SOCK_STREAM, IPPROTO_IP);
-	dbgprintf("server_sock: %d\r\n", server_sock);
+	if (server_sock < 0)
+	{
+		dbgprintf("WARN: server socket returned %d\r\n", server_sock);
+		server_retries += 1;
+		server_sock = -1;
+		return server_sock;
+	}
 
 	res = bind(top_fd, server_sock, (struct sockaddr *)&server);
 	if (res < 0)
 	{
-		close(top_fd, server_sock);
-		server_sock = -1;
+		stopServer();
+		server_retries += 1;
 		dbgprintf("WARN: bind() failed with: %d\r\n", res);
 		return res;
 	}
-	
 	res = listen(top_fd, server_sock, 1);
 	if (res < 0)
 	{
-		close(top_fd, server_sock);
-		server_sock = -1;
+		stopServer();
+		server_retries += 1;
 		dbgprintf("WARN: listen() failed with: %d\r\n", res);
 		return res;
 	}
-	return 0;
+
+	server_retries = 0;
+	return server_sock;
 }
 
 
-/* waitForHandshake()
- * Poll the client socket with a 5s timeout, expecting a message from the client.
- * If the socket is readable (we received a message), return true.
- * Otherwise, if the 5s elapse without a message, return false.
+/* waitForMessage()
+ * Poll a socket with some timeout, waiting for a message to arrive. If the
+ * socket is readable (we received a message), immediately return true.
+ * Otherwise, if the call times out (no message arrived), return false.
  */
-s32 waitForHandshake(s32 socket)
+bool waitForMessage(s32 socket, u32 timeout_ms)
 {
-	s32 res;
+	// Don't do anything if the socket is invalid
+	if (socket < 0) return 0;
+
 	STACK_ALIGN(struct pollsd, client_poll, 1, 32);
-
-	// If the socket is readable, POLLIN is written to revents
-	client_poll[0].socket = client_sock;
+	client_poll[0].socket = socket;
 	client_poll[0].events = POLLIN;
-	res = poll(top_fd, client_poll, 1, 5000);
 
-	// If poll() returns an error, do something to handle it
-	if (res < 0)
+	s32 res = poll(top_fd, client_poll, 1, timeout_ms);
+
+	// TODO: How to handle potential errors here?
+	if (res < 0) dbgprintf("WARN: poll() returned %d\r\n", res);
+
+	if ((client_poll[0].revents & POLLIN)) return true;
+	else return false;
+}
+
+
+/* generateToken()
+ * Generate a suitable token representing a client's session.
+ * Avoids generating FB_TOKEN. Takes u32 'except', to avoid re-generating.
+ */
+u32 generateToken(u32 except)
+{
+	union Token tok = { 0 };
+
+	while ((tok.word == FB_TOKEN) || (tok.word == except))
+		IOSC_GenerateRand(tok.bytes, 4);
+	return tok.word;
+}
+
+
+/* createClient()
+ * Given some accepted socket, create the client's state.
+ */
+bool createClient(s32 socket)
+{
+	int flags = 1;
+	u32 hs_token = 0;
+
+	// If we don't get a handshake, create a fallback client and return
+	dbgprintf("Waiting for handshake ...\r\n");
+	bool gotHandshake = waitForMessage(socket, HANDSHAKE_TIMEOUT_MS);
+	if (!gotHandshake)
 	{
-		dbgprintf("WARN: poll() returned < 0 (%08x)\r\n", res);
+		dbgprintf("Client sent no handshake, falling back\r\n");
+		client.socket = socket;
+		client.timestamp = read32(HW_TIMER);
+		client.token = FB_TOKEN;
+		client.cursor = 0;
+		client.version = CLIENT_FALLBACK;
+
+		// Set TCP_NODELAY on the client
+		setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY,
+				(void*)&flags, sizeof(flags));
+		return true;
 	}
 
-	dbgprintf("client_poll[0].revents=%08x\r\n", client_poll[0].revents);
-	if ((client_poll[0].revents & POLLIN))
-		return 1;
+	recvfrom(top_fd, socket, &hs_token, 4, 0);
+	dbgprintf("Got handshake token %08x from client\r\n", hs_token);
+
+	// If the handshake matches the last session, restore session state
+	if ((hs_token == client_prev.token) && (hs_token != FB_TOKEN))
+	{
+		client.cursor = client_prev.cursor;
+		memset(&client_prev, 0, sizeof(struct SlippiClient));
+		dbgprintf("Matched previous token, restored cursor 0x%08x %08x\r\n",
+				(client.cursor >> 32) & 0xffffffff,
+				(client.cursor & 0xffffffff));
+	}
+	// Otherwise (no match, or client sent FB_TOKEN), create a new session
 	else
-		return 0;
+	{
+		dbgprintf("Creating a new session ...\r\n");
+		client.cursor = 0;
+	}
+
+	client.token = generateToken(client_prev.token);
+	client.socket = socket;
+	client.timestamp = read32(HW_TIMER);
+	client.version = CLIENT_LATEST;
+
+	setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY,
+			(void*)&flags, sizeof(flags));
+
+	// Send the new token to the client
+	sendto(top_fd, client.socket, &client.token, 4, 0);
+	dbgprintf("Sent new token %08x to client\r\n", client.token);
+
+	return true;
 }
 
 
 /* listenForClient()
- * If no client is connected, block until a client to connects to the server.
- * If a client immediately sends us a message, upgrade them to the new interface.
- * Otherwise, assume the client is old and fallback to old behaviour.
+ * If no remote host is connected, block until a client to connects to the
+ * server. Potentially do some handshake to negotiate things with a client.
+ * Then, fill out a new entry for the client state/session.
  */
 void listenForClient()
 {
-	s32 res;
-	STACK_ALIGN(u32, token, 1, 32);
-
-	// We already have a client
-	if (client_sock >= 0)
+	// We already have an active client
+	if (client.socket >= 0)
 		return;
 
-	// Block here until we accept a client connection
-	client_sock = accept(top_fd, server_sock);
+	// Block here until we accept a new client connection
+	s32 socket = accept(top_fd, server_sock);
 
-	if (client_sock >= 0)
+	// If the socket isn't valid, accept() returned some error
+	if (socket < 0)
 	{
-		dbgprintf("Client connection detected, waiting for message...\r\n");
-
-		// If the client sends a message, upgrade them to the new interface
-		res = waitForHandshake(client_sock);
-		if (res)
-		{
-			res = recvfrom(top_fd, client_sock, token, 4, 0);
-			if (res == 4)
-				dbgprintf("Got %d bytes from client; new interface!\r\n", res);
-			else
-				dbgprintf("Got invalid number of bytes from client (%d)\r\n", res);
-
-		}
-		// Otherwise, fallback to the old interface
-		else
-		{
-			dbgprintf("No message; fallback to old interface\r\n", res);
-		}
-
-
-		int flags = 1;
-		res = setsockopt(top_fd, client_sock, IPPROTO_TCP, TCP_NODELAY,
-				(void *)&flags, sizeof(flags));
-		dbgprintf("[TCP_NODELAY] Client setsockopt result: %d\r\n", res);
-
-		client_alive_ts = read32(HW_TIMER);
+		dbgprintf("WARN: accept returned %d, server restart\r\n", socket);
+		stopServer();
+		return;
 	}
-	// Otherwise, accept() returned some error - kill the server here?
-	else
-	{
-		// Close server socket such that it can be re-initialized
-		// TODO: When eth is disconnected, this still doesn't bring the connection back
-		// TODO: server_sock keeps getting a -39. Figure out how to solve this
-		close(top_fd, server_sock);
-		server_sock = -1;
-		dbgprintf("WARN: accept() returned an error: %d\r\n", client_sock);
-	}
+
+	// Actually create a new client
+	dbgprintf("Detected connection, creating client ...\r\n");
+	createClient(socket);
 }
 
 
-/* hangUpConnection()
+/* killClient()
  * Close our connection with the current client.
  */
-void hangUpConnection() {
-	// The error codes I have seen so far are -39 (ethernet disconnected) and -56 (client hung up)
-	// Currently disable this timer thing because it doesn't seem like we can recover from them
-	// anyway
-	// if (TimerDiffSeconds(client_alive_ts) >= CLIENT_TERMINATE_S) {
+void killClient()
+{
+	dbgprintf("WARN: Client disconnected (socket %d, token=%08x)\r\n",
+			client.socket, client.token);
+	close(top_fd, client.socket);
 
-	// Hang up client
-	dbgprintf("Client disconnect detected\r\n");
-	client_alive_ts = 0;
-	close(top_fd, client_sock);
-	client_sock = -1;
+	// Save session when a client dies
+	if (client.version == CLIENT_LATEST)
+		memcpy(&client_prev, &client, sizeof(struct SlippiClient));
+
+	client.socket = -1;
+	client.timestamp = 0;
+	client.cursor = 0;
+	client.version = 0;
+	client.token = 0;
+
 	reset_broadcast_timer();
 }
 
@@ -255,20 +315,24 @@ s32 handleFileTransfer()
 	if (reader.lastReadResult.bytesRead == 0)
 		return 0;
 
-	s32 res = sendto(top_fd, client_sock, readBuf, reader.lastReadResult.bytesRead, 0);
+	s32 res = sendto(top_fd, client.socket, readBuf, reader.lastReadResult.bytesRead, 0);
 
 	// Naive client hangup detection
 	if (res < 0)
 	{
-		hangUpConnection();
+		killClient();
 		return res;
 	}
 
 	// Indicate client still active
-	client_alive_ts = read32(HW_TIMER);
+	client.timestamp = read32(HW_TIMER);
 
 	// Only update read position if transfer was successful
 	memReadPos += reader.lastReadResult.bytesRead;
+
+	// Save the latest cursor in client's session data
+	if (client.version == CLIENT_LATEST)
+		client.cursor = memReadPos;
 
 	return 0;
 }
@@ -281,9 +345,9 @@ int getConnectionStatus()
 {
 	if (server_sock < 0)
 		return CONN_STATUS_NO_SERVER;
-	if (client_sock < 0)
+	if (client.socket < 0)
 		return CONN_STATUS_NO_CLIENT;
-	else if (client_sock >= 0)
+	else if (client.socket >= 0)
 		return CONN_STATUS_CONNECTED;
 
 	return CONN_STATUS_UNKNOWN;
@@ -304,32 +368,21 @@ s32 checkAlive(void)
 	if (status != CONN_STATUS_CONNECTED)
 		return 0;
 
-	// Only check alive if we haven't detected any communication
-	if (TimerDiffSeconds(client_alive_ts) < 2)
+	// Only check if we haven't detected any communication
+	if (TimerDiffSeconds(client.timestamp) < 2)
 		return 0;
 
-	s32 res;
-	res = sendto(top_fd, client_sock, alive_msg, sizeof(alive_msg), 0);
+	// Send a 'HELO' packet to the client
+	s32 res = sendto(top_fd, client.socket, alive_msg, sizeof(alive_msg), 0);
 
+	// Update timestamp on success, otherwise kill the current client
 	if (res == sizeof(alive_msg))
-	{
-		client_alive_ts = read32(HW_TIMER);
-		// 250 ms wait. The goal here is that the keep alive message
-		// will be sent by itself without anything following it
-		mdelay(250);
-
-		return 0;
-	}
+		client.timestamp = read32(HW_TIMER);
 	else if (res <= 0)
-	{
-		hangUpConnection();
+		killClient();
 
-		// We no longer always hang up the connection, sleep a little bit to prevent send
-		// attempts from sending too fast
-		mdelay(250);
-		return -1;
-	}
-
+	// Nothing interesting is happening [probably], so we're free to sleep
+	mdelay(250);
 	return 0;
 }
 
