@@ -21,6 +21,9 @@
 u8 *SlipMem = (u8*)SLIPMEM_BASE;
 volatile u64 SlipMemCursor = 0x0000000000000000;
 
+// Global state: the current state of recording
+struct recordingState gameState ALIGNED(32);
+
 u16 getPayloadSize(SlpGameReader *reader, u8 command);
 void setPayloadSizes(SlpGameReader *reader, u32 readPos);
 void resetMetadata(SlpGameReader *reader);
@@ -30,14 +33,17 @@ void updateMetadata(SlpGameReader *reader, u8 *message, u32 messageLength);
 /* SlippiMemoryInit()
  * Zero out the buffer during boot - called from kernel/main.c
  */
-void SlippiMemoryInit()
-{
-	SlipMemClear();
+void SlippiMemoryInit() { 
+	SlipMemClear(); 
+	memset(&gameState, 0, sizeof(struct recordingState));
 }
 
 
 /* SlippiMemoryWrite()
  * Put some data onto the circular buffer.
+ *
+ * In order to manage session state for remote clients, we need to keep track
+ * of when a particular game is currently being recorded.
  */
 void SlippiMemoryWrite(const u8 *buf, u32 len)
 {
@@ -53,6 +59,22 @@ void SlippiMemoryWrite(const u8 *buf, u32 len)
 	// Otherwise, just write directly into the buffer
 	else
 		memcpy(&SlipMem[normalizedCursor], buf, len);
+
+	// Keep track of individual matches by checking commands
+	u8 command = SlipMem[normalizedCursor];
+	if (command == SLP_CMD_RECEIVE_COMMANDS)
+	{
+		gameState.baseCursor = SlipMemCursor;
+		gameState.isRecoverable = true;
+		gameState.inGame = true;
+		dbgprintf("Match %08x started at baseCursor=0x%08x\r\n", 
+				gameState.matchID, (u32)gameState.baseCursor);
+	}
+	if (command == SLP_CMD_RECEIVE_GAME_END)
+	{
+		gameState.inGame = false;
+		gameState.matchID += 1;
+	}
 
 	// Always increment the global write cursor
 	SlipMemCursor += len;
@@ -161,10 +183,7 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 /* SlippiRestoreReadPos()
  * Returns the current position of the global write cursor.
  */
-u64 SlippiRestoreReadPos()
-{
-	return SlipMemCursor;
-}
+u64 SlippiRestoreReadPos() { return SlipMemCursor; }
 
 
 /* resetMetadata()

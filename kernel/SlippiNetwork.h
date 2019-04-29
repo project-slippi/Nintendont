@@ -17,6 +17,21 @@ union Token {
 	u32 word;
 };
 
+/* struct handshakeReply
+ *
+ * Message sent back to a client after we receive a handshake.
+ * Contains:
+ *	- A new token representing this session
+ *	- The nickname of this console
+ *	- Nintendont version (maj_version << 16 | min_version)
+ */
+struct handshakeReply
+{
+	u32 token;			// New token for client
+	u32 version;			// Nintendont version
+	unsigned char nickname[32];	// Nickname of this console
+};
+
 /* struct SlippiClient
  *
  * Represents the state of some remote client. Members are padded to 32-byte
@@ -31,6 +46,7 @@ union Token {
  *	token		- a unique token/ID for this client
  *	cursor		- last known read cursor position
  *	version		- client compatibility version
+ *	matchID		- The ID of the current match
  */
 
 struct SlippiClient
@@ -48,7 +64,10 @@ struct SlippiClient
 	char pad4[0x18];
 
 	u32 version;
-	char pad5[0x1c];
+	char pad6[0x1c];
+
+	u32 matchID;
+	char pad7[0x1c];
 } ALIGNED(32);
 
 
