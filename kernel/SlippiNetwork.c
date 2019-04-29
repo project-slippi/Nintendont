@@ -52,7 +52,7 @@ struct SlippiClient client ALIGNED(32);
 struct SlippiClient client_prev ALIGNED(32);
 
 // Buffer for replying to some handshake message 
-struct handshakeReply handshake_reply ALIGNED(32) = { 0, 0, { 0 }, };
+struct handshakeReply handshake_reply ALIGNED(32) = { { "SLIP_HSHK\x00" }, 0, NIN_VERSION, { 0 }, };
 
 // Global network state
 extern s32 top_fd;			// from kernel/net.c
@@ -258,7 +258,6 @@ s32 startServer()
 	int nickLen = strlen(slippi_settings->nickname);
 	if (nickLen > 32) nickLen = 32;
 	memcpy(&handshake_reply.nickname, slippi_settings->nickname, nickLen);
-	handshake_reply.version = NIN_VERSION;
 	sync_after_write(&handshake_reply, sizeof(handshake_reply));
 
 	server_retries = 0;

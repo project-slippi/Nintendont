@@ -27,6 +27,7 @@ union Token {
  */
 struct handshakeReply
 {
+	unsigned char cmd[10];		// Command name
 	u32 token;			// New token for client
 	u32 version;			// Nintendont version
 	unsigned char nickname[32];	// Nickname of this console
