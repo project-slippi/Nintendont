@@ -9,7 +9,9 @@
 #define CONN_STATUS_NO_CLIENT 2
 #define CONN_STATUS_CONNECTED 3
 
-#define MAX_TX_SIZE 2048
+// This is the max amount of bytes that will be transferred on a single cycle. See comment in
+// SlippiNetwork for more info. Should definitely be greater than at least 1500
+#define MAX_TX_SIZE 3000
 
 #define FB_TOKEN	0x00000000
 union Token {
@@ -95,14 +97,6 @@ struct SlippiPacket
 
 	char data[0];		// Contents of the message
 } ALIGNED(32);
-
-
-// Classes of messages;
-enum messageType
-{
-	MSG_HANDSHAKE	= 1,
-	MSG_REPLAY	= 2,
-};
 
 // Function declarations
 s32 SlippiNetworkInit();

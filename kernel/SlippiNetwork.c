@@ -6,6 +6,7 @@
 #include "SlippiNetworkBroadcast.h"
 #include "SlippiDebug.h"
 #include "SlippiMemory.h"
+#include "SlippiCommunication.h"
 
 #include "common.h"
 #include "string.h"
@@ -23,7 +24,9 @@
  * from what it needed to be at 100 ms
  */
 
-#define READ_BUF_SIZE		2500	// Size of our local read buffer
+// Size of our local read buffer. This is the max amount of bytes we are willing to read from
+// SlippiMemory. We make sure to give some room off of MAX_TX_SIZE to fit the ubjson comm data
+#define READ_BUF_SIZE	MAX_TX_SIZE - 500
 
 #define THREAD_CYCLE_TIME_MS	1	// Thread loop interval (ms)
 #define HANDSHAKE_TIMEOUT_MS	5000	// Handshake timeout (ms)
@@ -178,7 +181,6 @@ void killClient()
  *
  * TODO: Find a way of accomplishing this without sending any data?
  */
-static char alive_msg[] ALIGNED(32) = "HELO";
 s32 checkAlive(void)
 {
 	int status = getConnectionStatus();
@@ -191,17 +193,16 @@ s32 checkAlive(void)
 	if (TimerDiffSeconds(client.timestamp) < 2)
 		return 0;
 
-	// Send a 'HELO' packet to the client
-	s32 res = sendto(top_fd, client.socket, alive_msg, sizeof(alive_msg), 0);
+	// Send a keep alive message to the client
+	SlippiCommMsg keepAliveMsg = genKeepAliveMsg();
+	s32 res = sendto(top_fd, client.socket, keepAliveMsg.msg, keepAliveMsg.size, 0);
 
 	// Update timestamp on success, otherwise kill the current client
-	if (res == sizeof(alive_msg))
+	if (res == keepAliveMsg.size)
 		client.timestamp = read32(HW_TIMER);
 	else if (res <= 0)
 		killClient();
 
-	// Nothing interesting is happening [probably], so we're free to sleep
-	mdelay(250);
 	return 0;
 }
 
@@ -374,8 +375,6 @@ void listenForClient()
 	createClient(socket);
 }
 
-
-
 /* handleFileTransfer()
  * Deal with sending Slippi data over the network:
  *
@@ -412,14 +411,18 @@ s32 handleFileTransfer()
 		return 0;
 
 	// Actually send data to the client
-	s32 res = sendto(top_fd, client.socket, readBuf, reader.lastReadResult.bytesRead, 0);
+	SlippiCommMsg replayMsg = genReplayMsg(readBuf, reader.lastReadResult.bytesRead, client.cursor);
+	s32 res = sendto(top_fd, client.socket, replayMsg.msg, replayMsg.size, 0);
 
 	// If sendto() returns < 0, the client has disconnected
 	if (res < 0)
 	{
+		dbgprintf("[SENDTO FAIL] Bytes read: %d | Last frame %d\r\n", reader.lastReadResult.bytesRead, reader.metadata.lastFrame);
 		killClient();
 		return res;
 	}
+
+	// dbgprintf("Bytes read: %d | Last frame %d\r\n", reader.lastReadResult.bytesRead, reader.metadata.lastFrame);
 
 	// When we successfully transmit, update the client's cursor
 	client.timestamp = read32(HW_TIMER);
