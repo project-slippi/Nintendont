@@ -8,8 +8,8 @@
 #define HANDSHAKE_MSG_BUF_SIZE 		64
 
 typedef struct SlippiCommMsg {
-  u32 size;
-  u8* msg;
+	u32 size;
+	u8* msg;
 } SlippiCommMsg;
 
 // Classes of messages;
