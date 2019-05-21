@@ -2,53 +2,74 @@
 #include "SlippiNetwork.h"
 
 #include "string.h"
+#include "Config.h"
+
 #include "ubj/ubj.h"
 
-#define KEEP_ALIVE_MSG_BUF_SIZE 20
-#define REPLAY_MSG_BUF_SIZE MAX_TX_SIZE
-#define HANDSHAKE_MSG_BUF_SIZE 100
 
-static u8 keepAliveMsgBuf[KEEP_ALIVE_MSG_BUF_SIZE];
+// Outbound UBJSON messages are kept in these buffers
+static u8 keepAliveMsgBuf[KEEPALIVE_MSG_BUF_SIZE];
 static u8 replayMsgBuf[REPLAY_MSG_BUF_SIZE];
 static u8 handshakeMsgBuf[HANDSHAKE_MSG_BUF_SIZE];
 
-ubjw_context_t* initMessage(u8* buf, u32 len) {
+
+/* initMessage()
+ * Given a buffer 'buf' and length 'len, return a fresh UBJSON object context
+ * associated with the buffer, for creating a new UBJSON message.
+ * Reserve the first four bytes of the buffer (buf + 4) for the message size.
+ */
+ubjw_context_t* initMessage(u8* buf, u32 len)
+{
 	ubjw_context_t* ctx = ubjw_open_memory(buf + 4, buf + len);
-
 	ubjw_begin_object(ctx, UBJ_MIXED, 0);
-
-  return ctx;
+  	return ctx;
 }
 
-SlippiCommMsg finishMessage(ubjw_context_t* ctx, u8* buf) {
-  ubjw_end(ctx);
 
+/* finishMessage()
+ * Close UBJSON object context, then write the final message size to the
+ * beginning of the buffer.
+ */
+SlippiCommMsg finishMessage(ubjw_context_t* ctx, u8* buf)
+{
+  	SlippiCommMsg resp;
+
+  	ubjw_end(ctx);
 	size_t msgSize = ubjw_close_context(ctx);
 
 	// Write message size to the front of the message
 	memcpy(buf, (u8*)&msgSize, 4);
 
-  SlippiCommMsg resp;
-  resp.msg = buf;
-  resp.size = msgSize + 4;
+  	resp.msg = buf;
+  	resp.size = msgSize + 4;
 
-  return resp;
+  	return resp;
 }
 
-SlippiCommMsg genKeepAliveMsg() {
-  ubjw_context_t* ctx = initMessage(keepAliveMsgBuf, KEEP_ALIVE_MSG_BUF_SIZE);
 
-  // Write message type
+/* genKeepAliveMsg()
+ * Create a new keep-alive message.
+ */
+SlippiCommMsg genKeepAliveMsg()
+{
+ 	ubjw_context_t* ctx = initMessage(keepAliveMsgBuf, KEEPALIVE_MSG_BUF_SIZE);
+
+  	// Write message type
 	ubjw_write_key(ctx, "type");
-	ubjw_write_uint8(ctx, MSG_KEEP_ALIVE);
+	ubjw_write_uint8(ctx, MSG_KEEPALIVE);
 
-  return finishMessage(ctx, keepAliveMsgBuf);
+	return finishMessage(ctx, keepAliveMsgBuf);
 }
 
-SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos) {
-  ubjw_context_t* ctx = initMessage(replayMsgBuf, REPLAY_MSG_BUF_SIZE);
 
-  // Write message type
+/* genReplayMsg()
+ * Create a new replay data message.
+ */
+SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos)
+{
+	ubjw_context_t* ctx = initMessage(replayMsgBuf, REPLAY_MSG_BUF_SIZE);
+
+  	// Write message type
 	ubjw_write_key(ctx, "type");
 	ubjw_write_uint8(ctx, MSG_REPLAY);
 
@@ -60,15 +81,31 @@ SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos) {
 	ubjw_write_key(ctx, "data");
 	ubjw_write_buffer(ctx, data, UBJ_UINT8, len);
 
-  return finishMessage(ctx, replayMsgBuf);
+	return finishMessage(ctx, replayMsgBuf);
 }
 
-SlippiCommMsg getHandshakeMsg() {
-  ubjw_context_t* ctx = initMessage(handshakeMsgBuf, HANDSHAKE_MSG_BUF_SIZE);
 
-  // Write message type
+/* genHandshakeMsg()
+ * Create a new handshake message.
+ */
+SlippiCommMsg genHandshakeMsg()
+{
+	ubjw_context_t* ctx = initMessage(handshakeMsgBuf, HANDSHAKE_MSG_BUF_SIZE);
+
+	int nickLen = strlen(slippi_settings->nickname);
+	if (nickLen > 32) nickLen = 32;
+
+  	// Write message type
 	ubjw_write_key(ctx, "type");
 	ubjw_write_uint8(ctx, MSG_HANDSHAKE);
 
-  return finishMessage(ctx, handshakeMsgBuf);
+	// Write payload
+	ubjw_write_key(ctx, "nick");
+	ubjw_write_buffer(ctx, (u8*)slippi_settings->nickname, UBJ_UINT8, nickLen);
+	ubjw_write_key(ctx, "maj_ver");
+	ubjw_write_int16(ctx, NIN_MAJOR_VERSION);
+	ubjw_write_key(ctx, "min_ver");
+	ubjw_write_int16(ctx, NIN_MINOR_VERSION);
+
+	return finishMessage(ctx, handshakeMsgBuf);
 }

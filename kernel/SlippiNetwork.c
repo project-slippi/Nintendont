@@ -54,9 +54,6 @@ struct SlippiClient client ALIGNED(32);
 // Saved state of the previous client
 struct SlippiClient client_prev ALIGNED(32);
 
-// Buffer for replying to some handshake message 
-struct handshakeReply handshake_reply ALIGNED(32) = { { "SLIP_HSHK\x00" }, 0, NIN_VERSION, { 0 }, };
-
 // Global network state
 extern s32 top_fd;			// from kernel/net.c
 u32 SlippiServerStarted = 0;		// used by kernel/main.c
@@ -255,12 +252,6 @@ s32 startServer()
 		return res;
 	}
 
-	// Initialize handshake reply with nickname and Nintendont version
-	int nickLen = strlen(slippi_settings->nickname);
-	if (nickLen > 32) nickLen = 32;
-	memcpy(&handshake_reply.nickname, slippi_settings->nickname, nickLen);
-	sync_after_write(&handshake_reply, sizeof(handshake_reply));
-
 	server_retries = 0;
 	return server_sock;
 }
@@ -278,31 +269,27 @@ s32 startServer()
 static u64 fallbackCursor;
 bool createClient(s32 socket)
 {
+	s32 res;
 	int flags = 1;
 	u32 hs_token = 0;
 
 	dbgprintf("HSHK: Waiting ...\r\n");
-	bool gotHandshake = waitForMessage(socket, HANDSHAKE_TIMEOUT_MS);
 
-	// If we don't get a handshake, create a fallback client and return
+	// Wait for a handshake message from the client
+	bool gotHandshake = waitForMessage(socket, HANDSHAKE_TIMEOUT_MS);
 	if (!gotHandshake)
 	{
-		dbgprintf("HSHK: Timed out, using fallback\r\n");
-		client.socket = socket;
-		client.timestamp = read32(HW_TIMER);
-		client.token = FB_TOKEN;
-		client.cursor = fallbackCursor;
-		client.matchID = gameState.matchID;
-		client.version = CLIENT_FALLBACK;
-
-		setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY, (void*)&flags, sizeof(flags));
-		dbgprintf("HSHK: Created fallback client with cursor 0x%08x...\r\n", (u32)client.cursor);
-		return true;
+		dbgprintf("HSHK: No handshake from client, giving up\r\n");
+		return false;
 	}
 
 	// Read the client's handshake off the socket
-	recvfrom(top_fd, socket, &hs_token, 4, 0);
-	dbgprintf("HSHK: Got token %08x from client\r\n", hs_token);
+	// ...
+
+
+	// Check the matchID and cursor provided in the handshake
+	// ...
+
 
 	// If the token matches the previous one AND we're in the same game
 	bool validToken = ((gameState.matchID == client_prev.matchID)
@@ -338,10 +325,11 @@ bool createClient(s32 socket)
 
 	setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY, (void*)&flags, sizeof(flags));
 
-	// Send a reply to the client (with the new token for this session)
-	handshake_reply.token = client.token;
-	sync_after_write(&handshake_reply, sizeof(handshake_reply));
-	sendto(top_fd, client.socket, &handshake_reply, sizeof(handshake_reply), 0);
+
+	// Send a handshake response back to the client
+	SlippiCommMsg handshakeMsg = genHandshakeMsg();
+	res = sendto(top_fd, client.socket, handshakeMsg.msg, handshakeMsg.size, 0);
+
 	dbgprintf("HSHK: Sent token %08x to client\r\n", client.token);
 
 	return true;
