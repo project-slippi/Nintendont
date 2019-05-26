@@ -27,6 +27,7 @@
 // Size of our local read buffer. This is the max amount of bytes we are willing to read from
 // SlippiMemory. We make sure to give some room off of MAX_TX_SIZE to fit the ubjson comm data
 #define READ_BUF_SIZE	MAX_TX_SIZE - 500
+#define CLIENT_MSG_BUF_SIZE 1024
 
 #define THREAD_CYCLE_TIME_MS	1	// Thread loop interval (ms)
 #define HANDSHAKE_TIMEOUT_MS	5000	// Handshake timeout (ms)
@@ -101,12 +102,36 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 	client_poll[0].events = POLLIN;
 
 	s32 res = poll(top_fd, client_poll, 1, timeout_ms);
+	dbgprintf("[Client Msg] Result: %d\r\n", res);
+
+	// TODO: Read in loop until we've received a full ubjson msg
 
 	// TODO: How to handle potential errors here?
 	if (res < 0) dbgprintf("WARN: poll() returned %d\r\n", res);
 
-	if ((client_poll[0].revents & POLLIN)) return true;
+	if (client_poll[0].revents & POLLIN) return true;
 	else return false;
+}
+
+static u8 clientMsg[CLIENT_MSG_BUF_SIZE];
+u32 getClientMessage(u32 waitTimeMs)
+{
+	u32 pos = 0;
+
+	u32 startTime = read32(HW_TIMER);
+	while (TimerDiffMs(startTime) < waitTimeMs) {
+		bool hasData = waitForMessage(socket, 100);
+		if (!hasData) {
+			continue;
+		}
+
+		// Here we have data, let's read it
+		u8 iReadBuf[128];
+		s32 res = recvfrom(top_fd, socket, iReadBuf, 128, 0);
+		dbgprintf("[Recv] Res: %d\r\n", res);
+	}
+
+	return 0;
 }
 
 
@@ -276,16 +301,8 @@ bool createClient(s32 socket)
 	dbgprintf("HSHK: Waiting ...\r\n");
 
 	// Wait for a handshake message from the client
-	bool gotHandshake = waitForMessage(socket, HANDSHAKE_TIMEOUT_MS);
-	if (!gotHandshake)
-	{
-		dbgprintf("HSHK: No handshake from client, giving up\r\n");
-		return false;
-	}
-
-	// Read the client's handshake off the socket
-	// ...
-
+	u32 msgSize = getClientMessage(HANDSHAKE_TIMEOUT_MS);
+	readClientMessage(clientMsg, msgSize);
 
 	// Check the matchID and cursor provided in the handshake
 	// ...

@@ -1,7 +1,10 @@
 #include "SlippiCommunication.h"
 #include "SlippiNetwork.h"
 
+#include "common.h"
 #include "string.h"
+#include "debug.h"
+#include "ff_utf8.h"
 #include "Config.h"
 
 #include "ubj/ubj.h"
@@ -108,4 +111,15 @@ SlippiCommMsg genHandshakeMsg()
 	ubjw_write_int16(ctx, NIN_MINOR_VERSION);
 
 	return finishMessage(ctx, handshakeMsgBuf);
+}
+
+void readClientMessage(u8* buf, u32 len)
+{
+	ubjr_context_t* rctx = ubjr_open_memory(buf,buf+len);
+	ubjr_dynamic_t filestruct = ubjr_read_dynamic(rctx);
+
+	dbgprintf("[Read Client] Type: %d\r\n", filestruct.type);
+
+	ubjr_cleanup_dynamic(&filestruct);
+	ubjr_close_context(rctx);
 }

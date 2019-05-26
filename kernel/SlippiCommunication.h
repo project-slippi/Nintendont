@@ -20,8 +20,12 @@ enum messageType
 	MSG_KEEPALIVE = 3,
 };
 
+// Create server messages to send
 SlippiCommMsg genKeepAliveMsg();
 SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos);
 SlippiCommMsg genHandshakeMsg();
+
+// Read client messages received
+void readClientMessage(u8* buf, u32 len);
 
 #endif

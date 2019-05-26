@@ -1,7 +1,13 @@
 #include "ubj.h"
 #include "ubj_internal.h"
-#include <stdlib.h>
-#include <string.h>
+
+// TODO: Figure out how to include functions we have no definitions for?
+// qsort
+// bsearch
+// fgetc
+// ungetc
+#include "../alloc.h"
+#include "../string.h"
 
 #if _MSC_VER
 #define inline __inline
