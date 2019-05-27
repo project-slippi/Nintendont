@@ -20,12 +20,22 @@ enum messageType
 	MSG_KEEPALIVE = 3,
 };
 
+typedef struct ClientMsg {
+	u8 type;
+	void* payload;
+} ClientMsg;
+
+typedef struct HandshakeClientPayload {
+	u64 cursor;
+	u32 instanceToken;
+} HandshakeClientPayload;
+
 // Create server messages to send
 SlippiCommMsg genKeepAliveMsg();
 SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos);
 SlippiCommMsg genHandshakeMsg();
 
 // Read client messages received
-void readClientMessage(u8* buf, u32 len);
+ClientMsg readClientMessage(u8* buf, u32 len);
 
 #endif

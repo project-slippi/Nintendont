@@ -113,13 +113,31 @@ SlippiCommMsg genHandshakeMsg()
 	return finishMessage(ctx, handshakeMsgBuf);
 }
 
-void readClientMessage(u8* buf, u32 len)
+ClientMsg readClientMessage(u8* buf, u32 len)
 {
-	ubjr_context_t* rctx = ubjr_open_memory(buf,buf+len);
-	ubjr_dynamic_t filestruct = ubjr_read_dynamic(rctx);
+	// ubjr_context_t* rctx = ubjr_open_memory(buf,buf+len);
+	// ubjr_dynamic_t filestruct = ubjr_read_dynamic(rctx);
 
-	dbgprintf("[Read Client] Type: %d\r\n", filestruct.type);
+	// dbgprintf("[Read Client] Type: %d\r\n", filestruct.type);
 
-	ubjr_cleanup_dynamic(&filestruct);
-	ubjr_close_context(rctx);
+	// ubjr_cleanup_dynamic(&filestruct);
+	// ubjr_close_context(rctx);
+
+	ClientMsg msg = { 0, NULL };
+
+	if (len < 8) {
+		return msg;
+	}
+
+	msg.type = buf[8];
+	switch (msg.type) {
+	case MSG_HANDSHAKE: ; // wtf C?
+		HandshakeClientPayload payload = { 0, 0 };
+		payload.cursor = *(u64*)(&buf[33]);
+
+		msg.payload = &payload;
+		break;
+	}
+
+	return msg;
 }

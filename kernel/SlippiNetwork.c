@@ -104,8 +104,6 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 	s32 res = poll(top_fd, client_poll, 1, timeout_ms);
 	dbgprintf("[Client Msg] Result: %d\r\n", res);
 
-	// TODO: Read in loop until we've received a full ubjson msg
-
 	// TODO: How to handle potential errors here?
 	if (res < 0) dbgprintf("WARN: poll() returned %d\r\n", res);
 
@@ -122,10 +120,12 @@ u32 getClientMessage(u32 waitTimeMs)
 	while (TimerDiffMs(startTime) < waitTimeMs) {
 		bool hasData = waitForMessage(socket, 100);
 		if (!hasData) {
+			dbgprintf("[Client Msg] No data\r\n");
 			continue;
 		}
 
 		// Here we have data, let's read it
+		// TODO: Make sure to read everything available, even if larger than 128 bytes
 		u8 iReadBuf[128];
 		s32 res = recvfrom(top_fd, socket, iReadBuf, 128, 0);
 		dbgprintf("[Recv] Res: %d\r\n", res);
@@ -302,7 +302,17 @@ bool createClient(s32 socket)
 
 	// Wait for a handshake message from the client
 	u32 msgSize = getClientMessage(HANDSHAKE_TIMEOUT_MS);
-	readClientMessage(clientMsg, msgSize);
+	ClientMsg msg = readClientMessage(clientMsg, msgSize);
+	if (msg.type != MSG_HANDSHAKE)
+	{
+		dbgprintf("[Handshake] Received non-handshake message from client, type: %d\r\n", msg.type);
+		killClient();
+		return;
+	}
+
+	HandshakeClientPayload* payload = (HandshakeClientPayload*)msg.payload;
+	
+	dbgprintf("[Handshake] Received cursor: %d\r\n", (u32)payload->cursor);
 
 	// Check the matchID and cursor provided in the handshake
 	// ...
