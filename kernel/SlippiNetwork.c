@@ -111,27 +111,30 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 	else return false;
 }
 
+
+/* getClientMessage()
+ * Wait up to 'waitTimeMs' in a loop until we receive a handshake message from 
+ * some 'socket'. Return the the size of the message we've received, otherwise
+ * return '-1' if we've timed out (the client never sent a message).
+ */
 static u8 clientMsg[CLIENT_MSG_BUF_SIZE];
-u32 getClientMessage(u32 waitTimeMs)
+u32 getClientMessage(s32 socket, u32 waitTimeMs)
 {
-	u32 pos = 0;
-
+	s32 res = -1;
 	u32 startTime = read32(HW_TIMER);
-	while (TimerDiffMs(startTime) < waitTimeMs) {
+
+	while (TimerDiffMs(startTime) < waitTimeMs) 
+	{
 		bool hasData = waitForMessage(socket, 100);
-		if (!hasData) {
-			dbgprintf("[Client Msg] No data\r\n");
-			continue;
+		if (hasData)
+		{
+			res = recvfrom(top_fd, socket, &clientMsg, 128, 0);
+			dbgprintf("[Recv] Res: %d\r\n", res);
+			break;
 		}
-
-		// Here we have data, let's read it
-		// TODO: Make sure to read everything available, even if larger than 128 bytes
-		u8 iReadBuf[128];
-		s32 res = recvfrom(top_fd, socket, iReadBuf, 128, 0);
-		dbgprintf("[Recv] Res: %d\r\n", res);
+		dbgprintf("[Client Msg] No data\r\n");
 	}
-
-	return 0;
+	return res;
 }
 
 
@@ -301,13 +304,20 @@ bool createClient(s32 socket)
 	dbgprintf("HSHK: Waiting ...\r\n");
 
 	// Wait for a handshake message from the client
-	u32 msgSize = getClientMessage(HANDSHAKE_TIMEOUT_MS);
+	s32 msgSize = getClientMessage(socket, HANDSHAKE_TIMEOUT_MS);
+	if (msgSize < 0)
+	{
+		dbgprintf("[Handshake] getClientMessage returned %d\r\n", msgSize);
+		dbgprintf("[Handshake] Timed out waiting for handshake\r\n", msgSize);
+		close(top_fd, socket);
+		return false;
+	}
 	ClientMsg msg = readClientMessage(clientMsg, msgSize);
 	if (msg.type != MSG_HANDSHAKE)
 	{
 		dbgprintf("[Handshake] Received non-handshake message from client, type: %d\r\n", msg.type);
-		killClient();
-		return;
+		close(top_fd, socket);
+		return false;
 	}
 
 	HandshakeClientPayload* payload = (HandshakeClientPayload*)msg.payload;
