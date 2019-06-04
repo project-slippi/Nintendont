@@ -132,12 +132,14 @@ ClientMsg readClientMessage(u8* buf, u32 len)
 	switch (msg.type) {
 	case MSG_HANDSHAKE: ; // wtf C? apparently I need this semicolon
 		HandshakeClientPayload payload = { 0, 0 };
-		payload.cursor = *(u64*)(&buf[33]);
 
-		u32 tok = *((u32*)(&buf[62]));
-		// dbgprintf("[Tok] Val: %d\r\n", tok);
+		
 
-		payload.instanceToken = tok;
+		memcpy(&payload.cursor, &buf[33], 8);
+		memcpy(&payload.instanceToken, &buf[62], 4);
+
+		// TODO: Figure out why dbgprintf crashes Nintendont in this file
+		// dbgprintf("[Tok] Val: %d\r\n", payload.instanceToken);
 
 		msg.payload = &payload;
 		break;
