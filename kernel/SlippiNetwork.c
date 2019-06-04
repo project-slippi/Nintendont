@@ -120,21 +120,44 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 static u8 clientMsg[CLIENT_MSG_BUF_SIZE];
 u32 getClientMessage(s32 socket, u32 waitTimeMs)
 {
-	s32 res = -1;
 	u32 startTime = read32(HW_TIMER);
+	u32 pos = 0;
+
+	u32 msgSize = 0;
 
 	while (TimerDiffMs(startTime) < waitTimeMs) 
 	{
 		bool hasData = waitForMessage(socket, 100);
-		if (hasData)
-		{
-			res = recvfrom(top_fd, socket, &clientMsg, 128, 0);
-			dbgprintf("[Recv] Res: %d\r\n", res);
-			break;
+		if (!hasData) {
+			dbgprintf("[Client Msg] No data\r\n");
+			continue;
 		}
-		dbgprintf("[Client Msg] No data\r\n");
+
+		u32 readLen = 0;
+
+		// First we need to read the total message size
+		if (msgSize == 0) {
+			// Read message size into 
+			readLen = recvfrom(top_fd, socket, &msgSize, 4, 0);
+			dbgprintf("[Recv Len] Res: %d | Val: %d\r\n", readLen, msgSize);
+			if (readLen != 4) {
+				// If first read does not contain the size, this is probably an error? It might be possible
+				// to get 
+				return -2;
+			}
+		}
+
+		readLen = recvfrom(top_fd, socket, &clientMsg[pos], msgSize - pos, 0);
+		dbgprintf("[Recv] Res: %d\r\n", readLen);
+
+		pos += readLen;
+
+		if (pos >= msgSize) {
+			// If pos is now equal to message size, we have finished reading the message
+			return pos;
+		}
 	}
-	return res;
+	return -1;
 }
 
 
@@ -312,6 +335,14 @@ bool createClient(s32 socket)
 		close(top_fd, socket);
 		return false;
 	}
+
+	int i = 0;
+	while (i < msgSize) {
+		dbgprintf("[%d] %x ", i, clientMsg[i]);
+		i++;
+	}
+	dbgprintf("\r\n");
+
 	ClientMsg msg = readClientMessage(clientMsg, msgSize);
 	if (msg.type != MSG_HANDSHAKE)
 	{
@@ -322,7 +353,18 @@ bool createClient(s32 socket)
 
 	HandshakeClientPayload* payload = (HandshakeClientPayload*)msg.payload;
 	
-	dbgprintf("[Handshake] Received cursor: %d\r\n", (u32)payload->cursor);
+	u32 test = (u32)payload->cursor;
+	dbgprintf("[Handshake] Received cursor: %d\r\n", test);
+	dbgprintf("[Handshake] Received instance token: %d\r\n", payload->instanceToken);
+	
+	u32 test2 = 32;
+	u8* test2Ptr = (u8*)&test2;
+	i = 0;
+	while (i < 4) {
+		dbgprintf("[%d] %x ", i, test2Ptr[i]);
+		i++;
+	}
+	dbgprintf("\r\n");
 
 	// Check the matchID and cursor provided in the handshake
 	// ...

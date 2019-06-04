@@ -5,7 +5,7 @@
 
 #define KEEPALIVE_MSG_BUF_SIZE 	20
 #define REPLAY_MSG_BUF_SIZE 		MAX_TX_SIZE
-#define HANDSHAKE_MSG_BUF_SIZE 		64
+#define HANDSHAKE_MSG_BUF_SIZE 		128
 
 typedef struct SlippiCommMsg {
 	u32 size;

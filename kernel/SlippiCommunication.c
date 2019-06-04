@@ -1,14 +1,11 @@
 #include "SlippiCommunication.h"
 #include "SlippiNetwork.h"
 
-#include "common.h"
-#include "string.h"
-#include "debug.h"
-#include "ff_utf8.h"
-#include "Config.h"
-
 #include "ubj/ubj.h"
 
+#include "string.h"
+#include "debug.h"
+#include "Config.h"
 
 // Outbound UBJSON messages are kept in these buffers
 static u8 keepAliveMsgBuf[KEEPALIVE_MSG_BUF_SIZE];
@@ -103,12 +100,14 @@ SlippiCommMsg genHandshakeMsg()
 	ubjw_write_uint8(ctx, MSG_HANDSHAKE);
 
 	// Write payload
+	ubjw_write_key(ctx, "payload");
+	ubjw_begin_object(ctx, UBJ_MIXED, 0);
 	ubjw_write_key(ctx, "nick");
 	ubjw_write_buffer(ctx, (u8*)slippi_settings->nickname, UBJ_UINT8, nickLen);
-	ubjw_write_key(ctx, "maj_ver");
-	ubjw_write_int16(ctx, NIN_MAJOR_VERSION);
-	ubjw_write_key(ctx, "min_ver");
-	ubjw_write_int16(ctx, NIN_MINOR_VERSION);
+	ubjw_write_key(ctx, "nintendontVersion");
+	ubjw_write_string(ctx, NIN_VERSION_SHORT_STRING);
+	ubjw_write_key(ctx, "instanceToken");
+	ubjw_write_int32(ctx, 20); // TODO: Use real instance token
 
 	return finishMessage(ctx, handshakeMsgBuf);
 }
@@ -131,9 +130,14 @@ ClientMsg readClientMessage(u8* buf, u32 len)
 
 	msg.type = buf[8];
 	switch (msg.type) {
-	case MSG_HANDSHAKE: ; // wtf C?
+	case MSG_HANDSHAKE: ; // wtf C? apparently I need this semicolon
 		HandshakeClientPayload payload = { 0, 0 };
 		payload.cursor = *(u64*)(&buf[33]);
+
+		u32 tok = *((u32*)(&buf[62]));
+		// dbgprintf("[Tok] Val: %d\r\n", tok);
+
+		payload.instanceToken = tok;
 
 		msg.payload = &payload;
 		break;
