@@ -1,0 +1,132 @@
+#!/usr/bin/python3
+""" slippi-cmdparse
+Simple script for parsing a file containing a stream of commands (replay data).
+"""
+
+import sys
+from struct import pack, unpack
+from hexdump import hexdump
+
+if (len(sys.argv) < 2):
+    print("usage: slippi-cmdparse <replay file> <filetype>")
+    print("\"Parse some stream of commands and write them to stdout\"")
+    print("Filetype may be 'replay' (for files with metadata) or 'stream' (bare streams)")
+    print("i.e 'slippi-cmdparse my_replay.slp replay'")
+    print("... 'slippi-cmdparse my_replay.bin stream'")
+    exit(0)
+
+filename = sys.argv[1]
+filetype = sys.argv[2]
+SKIP_METADATA = None
+STREAM = None
+if (filetype == 'replay'):
+    SKIP_METADATA = True
+if (filetype == 'stream'):
+    STREAM = True
+
+
+print("[*] Reading file: '{}'".format(filename))
+with open(filename, "rb") as f:
+    data = f.read()
+
+# These are the message types and lengths supported by this particular example. 
+# In reality, a Slippi client should self identify commands by emitting the 
+# 0x35 command to us (where the length is ((3 * num_commands) + 1)). 
+
+EVENT_PAYLOADS = 0x35
+GAME_START = 0x36
+PRE_FRAME = 0x37
+POST_FRAME = 0x38
+GAME_END = 0x39
+
+PAYLOADS = {}
+
+cur = 0
+if (SKIP_METADATA):
+    cur += 0xf
+
+if (STREAM):
+    cur += 0x34
+
+while (cur < len(data)):
+
+    if data[cur:cur+5] == 'HELO\x00':
+        cur += 5
+        continue
+
+    """ Deal with event payloads command """
+    if data[cur] == EVENT_PAYLOADS:
+        print("[*] {:08x} Event payload message".format(cur))
+        cur += 1
+        payload_size = unpack(">b", data[cur:cur+1])[0]
+        cur += 1
+        num_commands = ((payload_size-1) // 3)
+        for i in range(0, num_commands):
+            command = unpack(">b", data[cur:cur+1])[0]
+            cur += 1
+            command_size = unpack(">H", data[cur:cur+2])[0]
+            cur += 2
+            print("[*] Got supported command {}, size {}".format(hex(command), hex(command_size)))
+            PAYLOADS[command] = command_size
+        continue
+
+
+    """ Parse GAME_START messages """
+    if data[cur] == GAME_START:
+        blk = data[cur:cur+PAYLOADS[GAME_START]]
+
+        print("[*] {:08x} GAME_START message".format(cur))
+        cur += 1
+        cur += PAYLOADS[GAME_START]
+        continue
+
+    # PRE_FRAME
+    if data[cur] == PRE_FRAME:
+        blk = data[cur:cur+PAYLOADS[PRE_FRAME]]
+
+        try:
+            frame = unpack(">I", blk[0x1:0x5])[0]
+            player_idx = unpack(">b", blk[0x5:0x6])[0]
+            state = unpack(">H", blk[0xb:0xd])[0]
+        except:
+            break
+
+        print("[*] {:08x} PRE_FRAME message\t (frame={:08x})".format(cur, frame))
+        cur += 1
+        cur += PAYLOADS[PRE_FRAME]
+        continue
+
+    # POST_FRAME
+    if data[cur] == POST_FRAME:
+        blk = data[cur:cur+PAYLOADS[POST_FRAME]]
+
+
+        try: 
+            frame = unpack(">I", blk[0x1:0x5])[0]
+            player_idx = unpack(">b", blk[0x5:0x6])[0]
+            state = unpack(">H", blk[0x8:0xa])[0]
+        except: 
+            break
+
+        print("[*] {:08x} POST_FRAME message\t (frame={:08x})".format(cur, frame))
+        for line in hexdump(blk, result='generator'):
+            print("\t{}".format(line))
+
+
+        cur += 1
+        cur += PAYLOADS[POST_FRAME]
+        continue
+
+    # GAME_END
+    if data[cur] == GAME_END:
+        print("[*] {:08x} GAME_END message".format(cur))
+        cur += 1
+        cur += PAYLOADS[GAME_END]
+        break
+
+    # Otherwise, we're SOL
+    else:
+        print("[*] {:08x} No command".format(cur))
+        break
+
+
