@@ -45,8 +45,7 @@ typedef struct SlpGameReader
 
 struct recordingState 
 {
-	bool inGame;		// Are we currently recording?
-	bool isRecoverable;	// Is the current game recoverable?
+	bool inGame;		// Are we currently in a game?
 	u32 matchID;		// Unique ID for the current game
 	u64 baseCursor;		// Base of the current game in the buffer
 };

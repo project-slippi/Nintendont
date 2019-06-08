@@ -88,12 +88,9 @@ SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos)
 /* genHandshakeMsg()
  * Create a new handshake message.
  */
-SlippiCommMsg genHandshakeMsg()
+SlippiCommMsg genHandshakeMsg(u32 token)
 {
 	ubjw_context_t* ctx = initMessage(handshakeMsgBuf, HANDSHAKE_MSG_BUF_SIZE);
-
-	int nickLen = strlen(slippi_settings->nickname);
-	if (nickLen > 32) nickLen = 32;
 
 	// Write message type
 	ubjw_write_key(ctx, "type");
@@ -103,11 +100,11 @@ SlippiCommMsg genHandshakeMsg()
 	ubjw_write_key(ctx, "payload");
 	ubjw_begin_object(ctx, UBJ_MIXED, 0);
 	ubjw_write_key(ctx, "nick");
-	ubjw_write_buffer(ctx, (u8*)slippi_settings->nickname, UBJ_UINT8, nickLen);
+	ubjw_write_string(ctx, slippi_settings->nickname);
 	ubjw_write_key(ctx, "nintendontVersion");
 	ubjw_write_string(ctx, NIN_VERSION_SHORT_STRING);
-	ubjw_write_key(ctx, "instanceToken");
-	ubjw_write_int32(ctx, 20); // TODO: Use real instance token
+	ubjw_write_key(ctx, "clientToken");
+	ubjw_write_buffer(ctx, (u8*)&token, UBJ_UINT8, 4); // TODO: Use real instance token
 
 	return finishMessage(ctx, handshakeMsgBuf);
 }
@@ -133,13 +130,11 @@ ClientMsg readClientMessage(u8* buf, u32 len)
 	case MSG_HANDSHAKE: ; // wtf C? apparently I need this semicolon
 		HandshakeClientPayload payload = { 0, 0 };
 
-		
-
 		memcpy(&payload.cursor, &buf[33], 8);
-		memcpy(&payload.instanceToken, &buf[62], 4);
+		memcpy(&payload.clientToken, &buf[60], 4);
 
 		// TODO: Figure out why dbgprintf crashes Nintendont in this file
-		// dbgprintf("[Tok] Val: %d\r\n", payload.instanceToken);
+		// dbgprintf("[Tok] Val: %d\r\n", payload.clientToken);
 
 		msg.payload = &payload;
 		break;

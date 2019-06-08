@@ -27,13 +27,13 @@ typedef struct ClientMsg {
 
 typedef struct HandshakeClientPayload {
 	u64 cursor;
-	u32 instanceToken;
+	u32 clientToken;
 } HandshakeClientPayload;
 
 // Create server messages to send
 SlippiCommMsg genKeepAliveMsg();
 SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos);
-SlippiCommMsg genHandshakeMsg();
+SlippiCommMsg genHandshakeMsg(u32 token);
 
 // Read client messages received
 ClientMsg readClientMessage(u8* buf, u32 len);

@@ -49,23 +49,24 @@ void SlippiMemoryWrite(const u8 *buf, u32 len)
 {
 	u32 normalizedCursor = SlipMemCursor % SLIPMEM_SIZE;
 
-	// Wrap around the buffer if the write would overflow
 	if ((normalizedCursor + len) > SLIPMEM_SIZE)
 	{
+		// Wrap around the buffer if the write would overflow
 		u32 fillMemLen = SLIPMEM_SIZE - normalizedCursor;
 		memcpy(&SlipMem[normalizedCursor], buf, fillMemLen);
 		memcpy(SlipMem, &buf[fillMemLen], len - fillMemLen);
 	}
-	// Otherwise, just write directly into the buffer
 	else
+	{
+		// Otherwise, just write directly into the buffer
 		memcpy(&SlipMem[normalizedCursor], buf, len);
+	}
 
 	// Keep track of individual matches by checking commands
 	u8 command = SlipMem[normalizedCursor];
 	if (command == SLP_CMD_RECEIVE_COMMANDS)
 	{
 		gameState.baseCursor = SlipMemCursor;
-		gameState.isRecoverable = true;
 		gameState.inGame = true;
 		dbgprintf("Match %08x started at baseCursor=0x%08x\r\n", 
 				gameState.matchID, (u32)gameState.baseCursor);

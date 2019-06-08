@@ -307,6 +307,32 @@ s32 startServer()
 	return server_sock;
 }
 
+u64 determineReadCursor(HandshakeClientPayload* payload, bool isFreshClient) {
+	u64 curWritePos = SlippiRestoreReadPos();
+	u64 result = curWritePos;
+
+	if (isFreshClient) {
+		dbgprintf("New client, fresh cursor generation.");
+
+		// In the case where we get a brand new client, start them at the begining of the current
+		// game or at the write pos
+		return gameState.inGame ? gameState.baseCursor : curWritePos;
+	}
+
+	if (!gameState.inGame) {
+		// If we are no longer in a game but the client reconnects wanting data from the last match,
+		// allow them to finish receiving data from that match to prevent incomplete replays
+		bool isPreviousGame = payload->cursor >= gameState.baseCursor;
+		result = isPreviousGame ? payload->cursor : curWritePos;
+		return result > curWritePos ? curWritePos : result;
+	}
+
+	// If we are currently in a game, if the desired cursor is after the base cursor pos for this game
+	// but before or equal to the current write cursor, we can initialize to the desired cursor,
+	// otherwise, start from the begining of the game
+	bool isInGameBounds = payload->cursor >= gameState.baseCursor && payload->cursor <= curWritePos;
+	return isInGameBounds ? payload->cursor : gameState.baseCursor;
+}
 
 /* createClient()
  * Given some client socket accept()'ed by the server, create client state.
@@ -317,12 +343,10 @@ s32 startServer()
  *	  state for them (otherwise, create a new session)
  *	- Always rotate the token and return a new one to the client
  */
-static u64 fallbackCursor;
 bool createClient(s32 socket)
 {
 	s32 res;
 	int flags = 1;
-	u32 hs_token = 0;
 
 	dbgprintf("HSHK: Waiting ...\r\n");
 
@@ -336,13 +360,6 @@ bool createClient(s32 socket)
 		return false;
 	}
 
-	int i = 0;
-	while (i < msgSize) {
-		dbgprintf("[%d] %x ", i, clientMsg[i]);
-		i++;
-	}
-	dbgprintf("\r\n");
-
 	ClientMsg msg = readClientMessage(clientMsg, msgSize);
 	if (msg.type != MSG_HANDSHAKE)
 	{
@@ -353,67 +370,35 @@ bool createClient(s32 socket)
 
 	HandshakeClientPayload* payload = (HandshakeClientPayload*)msg.payload;
 	
-	u32 test = (u32)payload->cursor;
-	dbgprintf("[Handshake] Received cursor: %d\r\n", test);
-	dbgprintf("[Handshake] Received instance token: %d\r\n", payload->instanceToken);
-	
-	u32 test2 = 32;
-	u8* test2Ptr = (u8*)&test2;
-	i = 0;
-	while (i < 4) {
-		dbgprintf("[%d] %x ", i, test2Ptr[i]);
-		i++;
-	}
-	dbgprintf("\r\n");
+	dbgprintf("[Handshake] Received cursor: %u\r\n", (u32)payload->cursor);
+	dbgprintf("[Handshake] Received instance token: %u\r\n", payload->clientToken);
 
-	// Check the matchID and cursor provided in the handshake
-	// ...
-
-
-	// If the token matches the previous one AND we're in the same game
-	bool validToken = ((gameState.matchID == client_prev.matchID)
-			&& (hs_token == client_prev.token)
-			&& hs_token != FB_TOKEN);
-
-	if (gameState.inGame)
-	{
-		if (validToken)
-		{
-			client.cursor = client_prev.cursor;
-			client.matchID = client_prev.matchID;
-			memset(&client_prev, 0, sizeof(struct SlippiClient));
-			dbgprintf("HSHK: Matched token, restored cursor 0x%08x\r\n", 
-					(u32)client.cursor);
-		}
-		else
-		{
-			client.cursor = gameState.baseCursor;
-			client.matchID = gameState.matchID;
-		}
-
-	}
-	else
-	{
-		client.cursor = SlippiRestoreReadPos();
+	u32 token = client_prev.token;
+	bool shouldGenToken = token != payload->clientToken || payload->clientToken == 0;
+	if (shouldGenToken) {
+		dbgprintf("Client has changed, generating new token.\r\n");
+		token = generateToken(token);
 	}
 
-	client.token = generateToken(client_prev.token);
+	client.cursor = determineReadCursor(payload, shouldGenToken);
+	client.token = token;
 	client.socket = socket;
 	client.timestamp = read32(HW_TIMER);
 	client.version = CLIENT_LATEST;
 
 	setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY, (void*)&flags, sizeof(flags));
 
+	dbgprintf("Sending token: %u\r\n", client.token);
 
 	// Send a handshake response back to the client
-	SlippiCommMsg handshakeMsg = genHandshakeMsg();
+	SlippiCommMsg handshakeMsg = genHandshakeMsg(client.token);
 	res = sendto(top_fd, client.socket, handshakeMsg.msg, handshakeMsg.size, 0);
-
-	dbgprintf("HSHK: Sent token %08x to client\r\n", client.token);
+	if (res < 0) {
+		dbgprintf("Failed to send handshake response. %d\r\n", res);
+	}
 
 	return true;
 }
-
 
 /* listenForClient()
  * If no remote host is connected, block until a client to connects to the
@@ -494,7 +479,6 @@ s32 handleFileTransfer()
 	// When we successfully transmit, update the client's cursor
 	client.timestamp = read32(HW_TIMER);
 	client.cursor += reader.lastReadResult.bytesRead;
-	fallbackCursor = client.cursor;
 
 	return 0;
 }
