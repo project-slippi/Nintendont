@@ -128,51 +128,44 @@ static const char GCT_HEADER[8] = { 0x00, 0xd0, 0xc0, 0xde, 0x00, 0xd0, 0xc0, 0x
 static const char GCT_FOOTER[8] = { 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
 
 // First 0x100 bytes of the ISO title string, filled out in kernel/ISO.c
-// extern char GAME_TITLENAME[0x100];
-// static const char TITLE_20XX[] = "Super Smash Bros Melee 20XX";
+extern char GAME_TITLENAME[0x100];
+static const char TITLE_20XX[] = "Super Smash Bros Melee 20XX";
 
+#define MELEE_VERSION_20XX		0
 #define MELEE_VERSION_NONE		0
-#define MELEE_VERSION_NTSC_0		1
-#define MELEE_VERSION_NTSC_1		2
 #define MELEE_VERSION_NTSC_2		3
-#define MELEE_VERSION_PAL		4
-#define MELEE_VERSION_20XX		5
+#define MELEE_VERSION_TM		6
 
+/* GetMeleeVersion()
+ * Returns non-zero if the title we're booting supports Slippi recording AND 
+ * the supports the various toggleable Gecko codes.
+ */
 static u32 GetMeleeVersion(void)
 {
-	if (TITLE_ID != 0x47414C)
-		return MELEE_VERSION_NONE;
+	// Grab the revision/version number in case we need to check
+	sync_before_read((void*)0x00000000, 0x20);
+	u8 gameVers = *(u8*)0x00000007;
 
-	// Check the game ID [and fall through if we support it]
-	switch(GAME_ID) 
+	// This is the only way to check for a 20XX image; not supported!
+	if (strncmp(GAME_TITLENAME, TITLE_20XX, sizeof(TITLE_20XX)) == 0)
+		return MELEE_VERSION_20XX;
+
+	switch(GAME_ID)
 	{
-		case 0x47414C45: // GALE
-		case 0x47414C4A: // GALJ
-			break;
-		//case 0x47414C50: // GALP
-		//	return MELEE_VERSION_PAL;
+		// GAL{E,J} v1.02 are both supported!
+		case 0x47414c45: // GALE
+		case 0x47414c4a: // GALJ
+			if (gameVers == 2) return MELEE_VERSION_NTSC_2;
+
+		// GTME01 is also supported!
+		case 0x47544d45: // GTME
+			if (gameVers == 1) return MELEE_VERSION_TM;
+
+		// Otherwise, this image is not supported!
 		default:
 			return MELEE_VERSION_NONE;
 	}
-
-	// NOTE: Do we actually support 20XX?
-	//if (strncmp(GAME_TITLENAME, TITLE_20XX, sizeof(TITLE_20XX)) == 0)
-	//	return MELEE_VERSION_20XX;
-
-	// For supported NTSC images, check revision/version number
-	sync_before_read((void*)0x00000000, 0x20);
-	u8 gameVers = *(u8*)0x00000007;
-	switch (gameVers)
-	{
-		//case 0:
-		//	return MELEE_VERSION_NTSC_0;
-		//case 1:
-		//	return MELEE_VERSION_NTSC_1;
-		case 2:
-			return MELEE_VERSION_NTSC_2;
-		default: 
-			return MELEE_VERSION_NONE;
-	}
+	return MELEE_VERSION_NONE;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -3337,8 +3330,8 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		}
 		max_gct_size = (POffset < gct_cursor) ? 0 : (POffset - gct_cursor);
 
-		// Use tournament mode region if we're booting NTSC v1.02
-		if (MeleeVersion == MELEE_VERSION_NTSC_2)
+		// Use tournament mode region if we're booting NTSC v1.02 or GTME01.
+		if ((MeleeVersion == MELEE_VERSION_NTSC_2) || (MeleeVersion == MELEE_VERSION_TM))
 		{
 			// Patch to redirect tournament mode menu to VS mode
 			write32(0x0022D638, 0x38000002);
