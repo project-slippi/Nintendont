@@ -11,7 +11,7 @@
 #include "net.h"
 
 // File descriptor for the IOS socket driver, shared by all Slippi threads
-s32 top_fd __attribute__((aligned(32)));
+s32 top_fd ALIGNED(32);
 
 // Global state - Wi-Fi MAC address and current IP address
 u8 wifi_mac_address[6] ALIGNED(32) = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -327,7 +327,9 @@ s32 setsockopt(s32 fd, s32 socket, u32 level, u32 optname, void *optval, u32 opt
 	return res;
 }
 
-/* Implementation not tested yet. */
+/* poll()
+ * Poll for events on a socket.
+ */
 s32 poll(s32 fd, struct pollsd *sds, s32 nsds, s32 timeout)
 {
 	STACK_ALIGN(u64, params, 1, 32);

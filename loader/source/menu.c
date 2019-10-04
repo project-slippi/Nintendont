@@ -1082,6 +1082,7 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 					"Improve competition fairness",
 					"• Neutral Spawns",
 					"• Hide tag when invisible",
+					"• Preserve tag in rotations",
 					NULL
 				};
 				return desc_melee_tournament;

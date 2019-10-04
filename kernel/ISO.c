@@ -57,7 +57,7 @@ static u64 LastOffset64 = ~0ULL;
 bool Datel = false;
 
 // Used by kernel/Patch.c
-// char GAME_TITLENAME[0x100];
+char GAME_TITLENAME[0x100];
 
 // CISO: On-disc structure.
 // Temporarily loaded into cache memory.
@@ -355,7 +355,7 @@ bool ISOInit()
 	memcpy(&BI2region, isoTmpBuf, sizeof(BI2region));
 
 	// Save ISO game string; we use this to distinguish Melee images from 20XX images
-	// ISOReadDirect(&GAME_TITLENAME, 0x100, 0x20 + ISOShift64);
+	ISOReadDirect(&GAME_TITLENAME, 0x100, 0x20 + ISOShift64);
 
 	/* Reset Cache */
 	CacheInited = 0;

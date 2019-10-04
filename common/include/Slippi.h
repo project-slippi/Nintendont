@@ -24,10 +24,10 @@ struct slippi_settings {
 
 	// 32-bit, "difference between RTC and local time" in seconds.
 	// This is the number of seconds since 1/1/2000 00:00:00.
-	u32	rtc_bias;
+	u32 rtc_bias;
 
 	// 32-byte, user-configurable nickname for this console
-	char	nickname[32];
+	char nickname[32];
 };
 
 #endif // _SLIPPI_H

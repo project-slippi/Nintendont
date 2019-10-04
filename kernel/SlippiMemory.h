@@ -43,6 +43,13 @@ typedef struct SlpGameReader
 	SlpReadResult lastReadResult;
 } SlpGameReader;
 
+struct recordingState 
+{
+	bool inGame;		// Are we currently in a game?
+	u32 matchID;		// Unique ID for the current game
+	u64 baseCursor;		// Base of the current game in the buffer
+};
+
 void SlippiMemoryInit();
 
 void SlippiMemoryWrite(const u8 *buf, u32 len);
