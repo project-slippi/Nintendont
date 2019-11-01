@@ -9,6 +9,7 @@
 
 #include "../common/include/CommonConfig.h"
 #include "../common/include/Slippi.h"
+#include "../common/include/MeleeCodes.h"
 
 enum Video {
 						NTSC,
@@ -112,9 +113,9 @@ static inline u32 ConfigGetUseUSB(void)
 	return ncfg->UseUSB;
 }
 
-static inline u32 ConfigGetMeleeControllerFix(void)
+static inline u32 ConfigGetMeleeCodeValue(int identifier)
 {
-	return ncfg->MeleeControllerFix;
+	return ncfg->MeleeCodeOptions[identifier];
 }
 
 #endif

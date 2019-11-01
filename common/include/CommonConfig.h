@@ -4,6 +4,7 @@
 
 #include "NintendontVersion.h"
 #include "Metadata.h"
+#include "MeleeCodes.h"
 
 #define NIN_CFG_VERSION		0x00000009
 
@@ -23,17 +24,8 @@ typedef struct NIN_CFG
 	signed char		VideoOffset;
 	unsigned char		Unused;
 	unsigned int		UseUSB;			// 0 for SD, 1 for USB
-	unsigned int		MeleeControllerFix;
+	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID];
 } NIN_CFG;
-
-// Possible values for Melee-specific "controller fix" patches
-enum ninmeleecontrollerfix
-{
-	NIN_CFG_MELEE_CONTROLLER_NOFIX		= 0,
-	NIN_CFG_MELEE_CONTROLLER_UCF		= 1,
-	NIN_CFG_MELEE_CONTROLLER_IGTOGGLE	= 2,
-	NIN_CFG_MELEE_CONTROLLER_LAST		= 2,
-};
 
 enum ninconfigbitpos
 {
@@ -55,12 +47,6 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_NETWORK	= (13),
 	NIN_CFG_BIT_SLIPPI_FILE_WRITE	= (14),
 	NIN_CFG_BIT_SLIPPI_PORT_A = (15),
-
-	// "On" or "Off" Melee patches
-	NIN_CFG_BIT_MELEE_PAL	= (16),
-	NIN_CFG_BIT_MELEE_QOL	= (17),
-	NIN_CFG_BIT_MELEE_TOURNAMENT	= (18),
-	NIN_CFG_BIT_MELEE_FROZEN = (19),
 
 	// Internal kernel settings.
 	NIN_CFG_BIT_MC_SLOTB	= (31),	// Slot B image is loaded
@@ -85,11 +71,6 @@ enum ninconfig
 	NIN_CFG_NETWORK 	= (1<<NIN_CFG_BIT_NETWORK),
 	NIN_CFG_SLIPPI_FILE_WRITE 	= (1<<NIN_CFG_BIT_SLIPPI_FILE_WRITE),
 	NIN_CFG_SLIPPI_PORT_A 	= (1<<NIN_CFG_BIT_SLIPPI_PORT_A),
-
-	NIN_CFG_MELEE_PAL	= (1<<NIN_CFG_BIT_MELEE_PAL),
-	NIN_CFG_MELEE_QOL	= (1<<NIN_CFG_BIT_MELEE_QOL),
-	NIN_CFG_MELEE_TOURNAMENT	= (1<<NIN_CFG_BIT_MELEE_TOURNAMENT),
-	NIN_CFG_MELEE_FROZEN = (1<<NIN_CFG_BIT_MELEE_FROZEN),
 
 	NIN_CFG_MC_SLOTB	= (1<<NIN_CFG_BIT_MC_SLOTB),
 };

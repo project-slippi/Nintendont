@@ -38,6 +38,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "codehandleronly.h"
 #include "ff_utf8.h"
 
+#include "../common/include/MeleeCodes.h"
+
 //#define DEBUG_DSP  // Very slow!! Replace with raw dumps?
 
 u32 GAME_ID	= 0;
@@ -113,12 +115,7 @@ u32 IsN64Emu = 0;
  */
 
 #include "gecko/g_core.h"	// Core Slippi codeset
-#include "gecko/g_ucf.h"	// UCF codeset
-#include "gecko/g_toggles.h"	// Player-toggleable None/UCF/Dween at CSS
-#include "gecko/g_tournament.h"	// Tournament codes: neutral spawns, nametag hide
-#include "gecko/g_pal.h"	// Convert NTSC to PAL
-#include "gecko/g_qol.h"	// Salty runback/KO star indicates previous winner
-#include "gecko/g_frozen.h" // Frozen stadium toggle
+#include "gecko/g_core_porta.h"
 
 // Boundaries of the tournament mode region in NTSC-U v1.02
 #define CODELIST_TOURNAMENT_BASE	0x001910E0
@@ -3404,64 +3401,54 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		}
 		dbgprintf("Patch:Apply Slippi core at 0x%08x\r\n", gct_cursor);
 
-		// Always apply core Slippi patches when running Melee
-		memcpy((void*)gct_cursor, g_core, g_core_size);
-		sync_after_write((void*)gct_cursor, g_core_size);
-		gct_cursor += g_core_size;
+		// Always apply core Slippi patches when running Melee. If PortA option is selected, use
+		// PortA codes. This is used when using a USB Gecko
+		u32 shouldUsePortA = ConfigGetConfig(NIN_CFG_BIT_SLIPPI_PORT_A);
+
+		if (!shouldUsePortA) {
+			// Default behavior, Slippi is in Port B
+			memcpy((void*)gct_cursor, g_core, g_core_size);
+			sync_after_write((void*)gct_cursor, g_core_size);
+			gct_cursor += g_core_size;
+		} 
+		else 
+		{
+			memcpy((void*)gct_cursor, g_core_porta, g_core_porta_size);
+			sync_after_write((void*)gct_cursor, g_core_porta_size);
+			gct_cursor += g_core_porta_size;
+		}
 
 		dbgprintf("Patch:Apply toggleables at 0x%08x\r\n", gct_cursor);
 
-		// Optionally apply user-toggleable patches
-		if (ConfigGetConfig(NIN_CFG_MELEE_PAL))
-		{
-			memcpy((void*)gct_cursor, g_pal, g_pal_size);
-			sync_after_write((void*)gct_cursor, g_pal_size);
-			gct_cursor += g_pal_size;
-		}
-		if (ConfigGetConfig(NIN_CFG_MELEE_QOL))
-		{
-			memcpy((void*)gct_cursor, g_qol, g_qol_size);
-			sync_after_write((void*)gct_cursor, g_qol_size);
-			gct_cursor += g_qol_size;
-		}
-		if (ConfigGetConfig(NIN_CFG_MELEE_TOURNAMENT))
-		{
-			memcpy((void*)gct_cursor, g_tournament, g_tournament_size);
-			sync_after_write((void*)gct_cursor, g_tournament_size);
-			gct_cursor += g_tournament_size;
-		}
-		if (ConfigGetConfig(NIN_CFG_MELEE_FROZEN))
-		{
-			memcpy((void*)gct_cursor, g_frozen, g_frozen_size);
-			sync_after_write((void*)gct_cursor, g_frozen_size);
-			gct_cursor += g_frozen_size;
-		}
+		const MeleeCodeConfig *codeConfig = &mcconfig;
+		
+		// Iterate through all melee codes and add the codes that have been configured
+		int i, j;
+		for (i = 0; i < codeConfig->lineItemCount; i++) {
+			const MeleeCodeLineItem *lineItem = codeConfig->items[i];
+			u32 currentValue = ConfigGetMeleeCodeValue(lineItem->identifier);
 
-		dbgprintf("Patch:Apply controller fix at 0x%08x\r\n", gct_cursor);
+			// Attempt to fetch config for selected option
+			const MeleeCodeOption *selectedOption = NULL;
+			for (j = 0; j < lineItem->optionCount; j++) {
+				const MeleeCodeOption *option = lineItem->options[j];
+				if (option->value != currentValue) {
+					continue;
+				}
 
-		// Optionally apply user-toggleable controller-fix
-		u32 melee_controllerfix = ConfigGetMeleeControllerFix();
-		u32 controller_patch_len = 0;
-		const unsigned char *controller_patch = 0;
-		switch (melee_controllerfix)
-		{
-			case NIN_CFG_MELEE_CONTROLLER_UCF:
-				controller_patch	= g_ucf;
-				controller_patch_len	= g_ucf_size;
+				// If selected value is equal to this option, set it to selected option
+				selectedOption = option;
 				break;
-			case NIN_CFG_MELEE_CONTROLLER_IGTOGGLE:
-				controller_patch	= g_toggles;
-				controller_patch_len	= g_toggles_size;
-				break;
-			case NIN_CFG_MELEE_CONTROLLER_NOFIX:
-			default:
-				break;
-		}
-		if (controller_patch)
-		{
-			memcpy((void*)gct_cursor, controller_patch, controller_patch_len);
-			sync_after_write((void*)controller_patch, controller_patch_len);
-			gct_cursor += controller_patch_len;
+			}
+
+			if (!selectedOption || selectedOption->codeLen == 0) {
+				// Option not found or no code required for this option, do nothing
+				continue;
+			}
+
+			memcpy((void*)gct_cursor, selectedOption->code, selectedOption->codeLen);
+			sync_after_write((void*)gct_cursor, selectedOption->codeLen);
+			gct_cursor += selectedOption->codeLen;
 		}
 
 		dbgprintf("Patch:Apply GCT footer 0x%08x\r\n", gct_cursor);
