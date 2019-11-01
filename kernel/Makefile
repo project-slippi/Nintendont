@@ -48,6 +48,9 @@ OBJECTS	+= lwbt/bte.o lwbt/btmemb.o lwbt/btmemr.o lwbt/btpbuf.o lwbt/hci.o lwbt/
 # UBJSON Implementation
 OBJECTS += ubj/ubjr.o ubj/ubjrw.o ubj/ubjw.o
 
+# Common configs
+OBJECTS += ../common/config/MeleeCodes.o
+
 # When make is invoked with `make SLIPPI_DEBUG=1`: compile SlippiDebug.o and
 # let GCC define SLIPPI_PROFILE as a macro. Use this for some profiling code.
 

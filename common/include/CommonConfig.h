@@ -4,7 +4,7 @@
 
 #include "NintendontVersion.h"
 #include "Metadata.h"
-#include "MeleeCodes.h"
+#include "../config/MeleeCodes.h"
 
 #define NIN_CFG_VERSION		0x00000009
 

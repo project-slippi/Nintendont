@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "menu.h"
 #include "../../common/include/CommonConfigStrings.h"
-#include "../../common/include/MeleeCodes.h"
+#include "../../common/config/MeleeCodes.h"
 #include "ff_utf8.h"
 #include "ShowGameInfo.h"
 
@@ -78,7 +78,7 @@ const u32 DiscFormatColors[8] =
 	GRAY,		// undefined
 };
 
-const u8 meleeCodeSelectionIndices[MELEE_CODES_LINE_ITEM_COUNT];
+u8 meleeCodeSelectionIndices[MELEE_CODES_LINE_ITEM_COUNT];
 
 /**
  * Print information about the selected device.
@@ -292,6 +292,46 @@ static bool IsDiscImageValid(const char *filename, int discNumber, gameinfo *gi)
 
 	f_close(&in);
 	return ret;
+}
+
+void initMeleeCodeSelections() {
+	const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+
+	// Since codes might be added/removed, we don't want old settings to persist. This uses the values
+	// of the options to figure out which index the selection should be at
+	int i, j;
+	for (i = 0; i < codeConfig->lineItemCount; i++) {
+		const MeleeCodeLineItem *lineItem = codeConfig->items[i];
+
+		bool valueFound = false;
+		for (j = 0; j < lineItem->optionCount; j++) {
+			const MeleeCodeOption *option = lineItem->options[j];
+
+			u32 currentValue = ncfg->MeleeCodeOptions[lineItem->identifier];
+			if (currentValue != option->value) {
+				continue;
+			}
+
+			meleeCodeSelectionIndices[i] = j;
+			valueFound = true;
+			break;
+		}
+
+		if (!valueFound) {
+			// If value was not found, set default value
+			for (j = 0; j < lineItem->optionCount; j++) {
+				const MeleeCodeOption *option = lineItem->options[j];
+
+				if (lineItem->defaultValue != option->value) {
+					continue;
+				}
+
+				// Set index and option value
+				meleeCodeSelectionIndices[i] = j;
+				ncfg->MeleeCodeOptions[lineItem->identifier] = option->value;
+			}
+		}
+	}
 }
 
 /**
@@ -527,46 +567,6 @@ static DevState LoadGameList(gameinfo *gi, u32 sz, u32 *pGameCount)
 	initMeleeCodeSelections();
 
 	return DEV_OK;
-}
-
-void initMeleeCodeSelections() {
-	const MeleeCodeConfig *codeConfig = &mcconfig;
-
-	// Since codes might be added/removed, we don't want old settings to persist. This uses the values
-	// of the options to figure out which index the selection should be at
-	int i, j;
-	for (i = 0; i < codeConfig->lineItemCount; i++) {
-		MeleeCodeLineItem *lineItem = codeConfig->items[i];
-
-		bool valueFound = false;
-		for (j = 0; j < lineItem->optionCount; j++) {
-			MeleeCodeOption *option = lineItem->options[j];
-
-			int currentValue = ConfigGetMeleeCodeValue(lineItem->identifier);
-			if (currentValue != option->value) {
-				continue;
-			}
-
-			meleeCodeSelectionIndices[i] = j;
-			valueFound = true;
-			break;
-		}
-
-		if (!valueFound) {
-			// If value was not found, set default value
-			for (j = 0; j < lineItem->optionCount; j++) {
-				MeleeCodeOption option = lineItem->options[j];
-
-				if (lineItem->defaultValue != option->value) {
-					continue;
-				}
-
-				// Set index and option value
-				meleeCodeSelectionIndices[i] = j;
-				ncfg->MeleeCodeOptions[item->identifier] = option->value;
-			}
-		}
-	}
 }
 
 // Menu selection context.
@@ -1156,8 +1156,8 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 			// 	return desc_melee_frozen;
 			// }
 
-			default:
-				const MeleeCodeConfig *codeConfig = &mcconfig;
+			default: ; // Need semicolon here to declare variable on next line
+				const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 				int index = ctx->settings.posX - 5;
 				if (index < 0 || index > codeConfig->lineItemCount) {
 					// If outside of the range for codes, do nothing
@@ -1529,8 +1529,8 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 				// 	ncfg->Config ^= (NIN_CFG_MELEE_FROZEN);
 				// 	ctx->redraw = true;
 				// 	break;
-				default:
-					const MeleeCodeConfig *codeConfig = &mcconfig;
+				default: ; // need semicolon to declare variable on next line
+					const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 					int index = ctx->settings.posX - 5;
 					if (index < 0 || index > codeConfig->lineItemCount) {
 						// If outside of the range for codes, do nothing
@@ -1544,10 +1544,10 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 						meleeCodeSelectionIndices[index] = 0;
 					}
 
-					const MeleeCodeOption *option = item.options[meleeCodeSelectionIndices[index]];
+					const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[index]];
 
 					// Set the value of the option in the config
-					ncfg->MeleeCodeOptions[item.identifier] = option->value;
+					ncfg->MeleeCodeOptions[item->identifier] = option->value;
 					ctx->redraw = true;
 					break;
 			}
@@ -1708,34 +1708,45 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		PrintFormat(14, DARK_BLUE, MENU_POS_X + 320, SettingY(ListLoopIndex), "MELEE CODES");
 		ListLoopIndex++;
 
-		// Controller Fix Toggle
-		u32 ControllerPatchIdx = ncfg->MeleeControllerFix;
-		if (ControllerPatchIdx < NIN_CFG_MELEE_CONTROLLER_NOFIX || ControllerPatchIdx >= NIN_CFG_MELEE_CONTROLLER_IGTOGGLE)
-			ControllerPatchIdx = NIN_CFG_MELEE_CONTROLLER_IGTOGGLE;
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Controller Fix", MeleeControllerFixStrings[ControllerPatchIdx]);
-		ListLoopIndex++;
+		// // Controller Fix Toggle
+		// u32 ControllerPatchIdx = ncfg->MeleeControllerFix;
+		// if (ControllerPatchIdx < NIN_CFG_MELEE_CONTROLLER_NOFIX || ControllerPatchIdx >= NIN_CFG_MELEE_CONTROLLER_IGTOGGLE)
+		// 	ControllerPatchIdx = NIN_CFG_MELEE_CONTROLLER_IGTOGGLE;
+		// PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+		// 		"%-18s:%-4s", "Controller Fix", MeleeControllerFixStrings[ControllerPatchIdx]);
+		// ListLoopIndex++;
 
-		// PAL Toggle
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "PAL", (ncfg->Config & (NIN_CFG_MELEE_PAL)) ? "On" : "Off");
-		ListLoopIndex++;
+		// // PAL Toggle
+		// PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+		// 		"%-18s:%-4s", "PAL", (ncfg->Config & (NIN_CFG_MELEE_PAL)) ? "On" : "Off");
+		// ListLoopIndex++;
 
-		// Tournament Toggle
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Tournament Mods", (ncfg->Config & (NIN_CFG_MELEE_TOURNAMENT)) ? "On" : "Off");
-		ListLoopIndex++;
+		// // Tournament Toggle
+		// PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+		// 		"%-18s:%-4s", "Tournament Mods", (ncfg->Config & (NIN_CFG_MELEE_TOURNAMENT)) ? "On" : "Off");
+		// ListLoopIndex++;
 
-		// QOL Toggle
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Quality of Life", (ncfg->Config & (NIN_CFG_MELEE_QOL)) ? "On" : "Off");
-		ListLoopIndex++;
+		// // QOL Toggle
+		// PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+		// 		"%-18s:%-4s", "Quality of Life", (ncfg->Config & (NIN_CFG_MELEE_QOL)) ? "On" : "Off");
+		// ListLoopIndex++;
 
-		// Frozen Toggle
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Frozen PS", (ncfg->Config & (NIN_CFG_MELEE_FROZEN)) ? "On" : "Off");
-		ListLoopIndex++;
+		// // Frozen Toggle
+		// PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+		// 		"%-18s:%-4s", "Frozen PS", (ncfg->Config & (NIN_CFG_MELEE_FROZEN)) ? "On" : "Off");
+		// ListLoopIndex++;
 
+		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+		
+		int i;
+		for (i = 0; i < codeConfig->lineItemCount; i++) {
+				const MeleeCodeLineItem *item = codeConfig->items[i];
+				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
+
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
+						"%-18s:%-4s", item->name, option->name);
+				ListLoopIndex++;
+		}
 
 		// Draw the cursor.
 		if (ctx->settings.settingPart == 0) {

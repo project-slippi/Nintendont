@@ -38,7 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "codehandleronly.h"
 #include "ff_utf8.h"
 
-#include "../common/include/MeleeCodes.h"
+#include "../common/config/MeleeCodes.h"
 
 //#define DEBUG_DSP  // Very slow!! Replace with raw dumps?
 
@@ -3420,7 +3420,7 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 
 		dbgprintf("Patch:Apply toggleables at 0x%08x\r\n", gct_cursor);
 
-		const MeleeCodeConfig *codeConfig = &mcconfig;
+		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 		
 		// Iterate through all melee codes and add the codes that have been configured
 		int i, j;

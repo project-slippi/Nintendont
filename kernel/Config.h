@@ -9,7 +9,7 @@
 
 #include "../common/include/CommonConfig.h"
 #include "../common/include/Slippi.h"
-#include "../common/include/MeleeCodes.h"
+#include "../common/config/MeleeCodes.h"
 
 enum Video {
 						NTSC,
