@@ -75,6 +75,17 @@ $(GECKO_DIR)/%.h: $(GECKO_DIR)/%.bin
 	@echo "BIN2H    $<"
 	@$(BIN2H) $<
 
+#---------------------------------------------------------------------------------
+# For building all common config files
+COMMON_CFG_DIR	:= ../common/config
+COMMON_CFG_DEPS := $(wildcard ../common/config/*.c)
+COMMON_CFG	:= $(COMMON_CFG_DEPS:%.c=%_arm.o)
+
+$(COMMON_CFG_DIR)/%_arm.o: ${COMMON_CFG_DIR}/%.c
+	@echo "CC    $<"
+	@$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) \
+		-o $@ $<
+
 
 #---------------------------------------------------------------------------------
 .PHONY: FORCE
@@ -82,17 +93,12 @@ all: $(TARGET)
 
 -include $(OBJECTS:.o=.d)
 
-
-$(TARGET): $(GECKO_H) common_objs kernel.ld $(OBJECTS)
+$(TARGET): $(GECKO_H) $(COMMON_CFG) kernel.ld $(OBJECTS)
 	@echo  "LD	$@"
 	@$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
 	@$(OBJCOPY) -S -O binary kernel.elf kernel.bin
 	@echo  "ZIP	$(ZIPFILE)"
 	@$(ZIP) -JXjq9 $(ZIPFILE) kernel.bin
-
-common_objs: 
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) \
-		-o ../common/config/MeleeCodes_arm.o ../common/config/MeleeCodes.c
 
 %.o: %.s
 	@echo  "AS	$@"
@@ -107,4 +113,5 @@ common_objs:
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) -o $@ $<
 
 clean:
-	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d *.map lwbt/*.d lwbt/*.o option/*.d option/*.o gecko/*.h
+	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d *.map lwbt/*.d lwbt/*.o option/*.d option/*.o gecko/*.h \
+		../common/config/*.o ../common/config/*.d
