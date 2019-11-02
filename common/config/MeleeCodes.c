@@ -1,7 +1,7 @@
 #include "MeleeCodes.h"
 
-#include "../kernel/gecko/g_ucf.h" // UCF codeset
-#include "../kernel/gecko/g_pal.h" // PAL codeset
+#include "../../kernel/gecko/g_ucf.h" // UCF codeset
+#include "../../kernel/gecko/g_pal.h" // PAL codeset
 
 #define NULL ((void *)0)
 

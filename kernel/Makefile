@@ -49,7 +49,11 @@ OBJECTS	+= lwbt/bte.o lwbt/btmemb.o lwbt/btmemr.o lwbt/btpbuf.o lwbt/hci.o lwbt/
 OBJECTS += ubj/ubjr.o ubj/ubjrw.o ubj/ubjw.o
 
 # Common configs
-OBJECTS += ../common/config/MeleeCodes.o
+OBJECTS += ../common/config/MeleeCodes_arm.o
+
+common_objs: 
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) \
+					-o ../common/config/MeleeCodes_arm.o ../common/config/MeleeCodes.c
 
 # When make is invoked with `make SLIPPI_DEBUG=1`: compile SlippiDebug.o and
 # let GCC define SLIPPI_PROFILE as a macro. Use this for some profiling code.
@@ -83,7 +87,7 @@ all: $(TARGET)
 -include $(OBJECTS:.o=.d)
 
 
-$(TARGET): $(GECKO_H) kernel.ld $(OBJECTS)
+$(TARGET): common_objs $(GECKO_H) kernel.ld $(OBJECTS)
 	@echo  "LD	$@"
 	@$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
 	@$(OBJCOPY) -S -O binary kernel.elf kernel.bin
