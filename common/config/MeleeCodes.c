@@ -257,7 +257,8 @@ const MeleeCodeLineItem *meleeCodeLineItems[] = {
 	&cfLineItem,
 	&versionLineItem,
 	&modsLineItem,
-	&lagReductionLineItem
+	&lagReductionLineItem,
+	&rulesetLineItem,
 };
 
 const MeleeCodeConfig mcconfig = {

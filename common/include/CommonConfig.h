@@ -6,7 +6,7 @@
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
-#define NIN_CFG_VERSION		0x00000009
+#define NIN_CFG_VERSION		0x0000000A
 
 #define NIN_CFG_MAXPAD 4
 

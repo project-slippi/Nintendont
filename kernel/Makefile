@@ -83,7 +83,7 @@ all: $(TARGET)
 -include $(OBJECTS:.o=.d)
 
 
-$(TARGET): common_objs $(GECKO_H) kernel.ld $(OBJECTS)
+$(TARGET): $(GECKO_H) common_objs kernel.ld $(OBJECTS)
 	@echo  "LD	$@"
 	@$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
 	@$(OBJCOPY) -S -O binary kernel.elf kernel.bin
