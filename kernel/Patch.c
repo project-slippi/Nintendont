@@ -3402,10 +3402,10 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 
 		// Always apply core Slippi patches when running Melee. If PortA option is selected, use
 		// PortA codes. This is used when using a USB Gecko
-		u32 shouldUsePortA = ConfigGetConfig(NIN_CFG_BIT_SLIPPI_PORT_A);
+		u32 shouldUsePortA = ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A);
 
 		if (!shouldUsePortA) {
-			dbgprintf("Patch:Apply Slippi core (port a) at 0x%08x\r\n", gct_cursor);
+			dbgprintf("Patch:Apply Slippi core (port b) at 0x%08x\r\n", gct_cursor);
 
 			// Default behavior, Slippi is in Port B
 			memcpy((void*)gct_cursor, g_core, g_core_size);
@@ -3414,7 +3414,7 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		} 
 		else 
 		{
-			dbgprintf("Patch:Apply Slippi core (port b) at 0x%08x\r\n", gct_cursor);
+			dbgprintf("Patch:Apply Slippi core (port a) at 0x%08x\r\n", gct_cursor);
 
 			memcpy((void*)gct_cursor, g_core_porta, g_core_porta_size);
 			sync_after_write((void*)gct_cursor, g_core_porta_size);
