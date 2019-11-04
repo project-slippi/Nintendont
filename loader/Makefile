@@ -20,6 +20,7 @@ TARGET		:= $(notdir $(CURDIR))
 BUILD		:= build
 SOURCES		:= source
 SOURCES		+= source/unzip
+SOURCES		+= ../common/config
 DATA		:= data
 INCLUDES	:= include ../fatfs
 

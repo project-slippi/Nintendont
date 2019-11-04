@@ -48,6 +48,9 @@ OBJECTS	+= lwbt/bte.o lwbt/btmemb.o lwbt/btmemr.o lwbt/btpbuf.o lwbt/hci.o lwbt/
 # UBJSON Implementation
 OBJECTS += ubj/ubjr.o ubj/ubjrw.o ubj/ubjw.o
 
+# Common configs
+OBJECTS += ../common/config/MeleeCodes_arm.o
+
 # When make is invoked with `make SLIPPI_DEBUG=1`: compile SlippiDebug.o and
 # let GCC define SLIPPI_PROFILE as a macro. Use this for some profiling code.
 
@@ -72,6 +75,17 @@ $(GECKO_DIR)/%.h: $(GECKO_DIR)/%.bin
 	@echo "BIN2H    $<"
 	@$(BIN2H) $<
 
+#---------------------------------------------------------------------------------
+# For building all common config files
+COMMON_CFG_DIR	:= ../common/config
+COMMON_CFG_DEPS := $(wildcard ../common/config/*.c)
+COMMON_CFG	:= $(COMMON_CFG_DEPS:%.c=%_arm.o)
+
+$(COMMON_CFG_DIR)/%_arm.o: ${COMMON_CFG_DIR}/%.c
+	@echo "CC    $<"
+	@$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) \
+		-o $@ $<
+
 
 #---------------------------------------------------------------------------------
 .PHONY: FORCE
@@ -79,8 +93,7 @@ all: $(TARGET)
 
 -include $(OBJECTS:.o=.d)
 
-
-$(TARGET): $(GECKO_H) kernel.ld $(OBJECTS)
+$(TARGET): $(GECKO_H) $(COMMON_CFG) kernel.ld $(OBJECTS)
 	@echo  "LD	$@"
 	@$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
 	@$(OBJCOPY) -S -O binary kernel.elf kernel.bin
@@ -100,4 +113,5 @@ $(TARGET): $(GECKO_H) kernel.ld $(OBJECTS)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) -o $@ $<
 
 clean:
-	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d *.map lwbt/*.d lwbt/*.o option/*.d option/*.o gecko/*.h
+	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d *.map lwbt/*.d lwbt/*.o option/*.d option/*.o gecko/*.h \
+		../common/config/*.o ../common/config/*.d

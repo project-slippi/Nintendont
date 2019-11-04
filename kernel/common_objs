@@ -1,0 +1,10 @@
+../common/config/MeleeCodes_arm.o: ../common/config/MeleeCodes.c \
+ ../common/config/MeleeCodes.h \
+ ../common/config/../../kernel/gecko/g_ucf.h \
+ ../common/config/../../kernel/gecko/g_pal.h
+
+../common/config/MeleeCodes.h:
+
+../common/config/../../kernel/gecko/g_ucf.h:
+
+../common/config/../../kernel/gecko/g_pal.h:

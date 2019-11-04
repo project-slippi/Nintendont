@@ -123,6 +123,7 @@ void EXIInit(void)
 	dbgprintf("This should work stream!\r\n");
 
 	Slippi_UsePortA = ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A);
+	dbgprintf("Slippi use port A: %d\r\n", Slippi_UsePortA);
 
 	//some important memory for triforce
 	ambbBackupMem = malloca(0x10000, 0x40);

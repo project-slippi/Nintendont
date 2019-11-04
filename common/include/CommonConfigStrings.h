@@ -53,12 +53,4 @@ const char* VideoModeStrings[] =
 	"MPAL",
 };
 
-// This should match `enum ninmeleecontrollerfix` in `CommonConfig.h`
-const char *MeleeControllerFixStrings[] =
-{
-	"None",
-	"UCF",
-	"Toggle",
-};
-
 #endif
