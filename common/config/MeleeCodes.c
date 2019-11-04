@@ -19,7 +19,7 @@ const MeleeCodeOption cfOptionUcf = {
 	2, // value
 	"UCF", // name
 	g_ucf_size, // codeLen
-	NULL, // code
+	g_ucf, // code
 };
 
 const MeleeCodeOption cfOptionStealthUcf = {
