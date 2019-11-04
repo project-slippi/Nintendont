@@ -1623,7 +1623,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
 
 				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-						"%-18s:%-4s", item->name, option->name);
+						"%-15s:%s", item->name, option->name);
 				ListLoopIndex++;
 		}
 

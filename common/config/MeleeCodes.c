@@ -1,7 +1,19 @@
 #include "MeleeCodes.h"
 
 #include "../../kernel/gecko/g_ucf.h" // UCF codeset
+#include "../../kernel/gecko/g_ucf_stealth.h" // UCF Stealth
+#include "../../kernel/gecko/g_toggles.h" // In Game CF Toggles
+
 #include "../../kernel/gecko/g_pal.h" // PAL codeset
+
+#include "../../kernel/gecko/g_mods_stealth.h" // Mods: Stealth
+#include "../../kernel/gecko/g_mods_tournament.h" // Mods: Tournament
+#include "../../kernel/gecko/g_mods_friendlies.h" // Mods: Friendlies
+
+#include "../../kernel/gecko/g_lag_pd.h" // Lag Reduction: PD
+#include "../../kernel/gecko/g_lag_pdvb.h" // Lag Reduction: PD+VB
+
+#include "../../kernel/gecko/g_frozen.h" // Ruleset: Frozen Pokemon
 
 #define NULL ((void *)0)
 
@@ -25,15 +37,15 @@ const MeleeCodeOption cfOptionUcf = {
 const MeleeCodeOption cfOptionStealthUcf = {
 	3, // value
 	"Stealth", // name
-	0, // codeLen
-	NULL, // code
+	g_ucf_stealth_size, // codeLen
+	g_ucf_stealth, // code
 };
 
 const MeleeCodeOption cfOptionToggle = {
 	4, // value
 	"Toggle", // name
-	0, // codeLen
-	NULL, // code
+	g_toggles_size, // codeLen
+	g_toggles, // code
 };
 
 const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
@@ -44,12 +56,14 @@ const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
 };
 
 static const char *cfDescription[] = {
-	"Emulates a memory card in",
-	"Slot A using a .raw file.",
+	"The type of controller fix",
+	"to apply",
 	"",
-	"Disable this option if you",
-	"want to use a real memory",
-	"card on an original Wii.",
+	"1. UCF will enable UCF 0.74",
+	"2. Stealth will enable UCF",
+	"without the CSS text",
+	"3. Toggle will allow option",
+	"selection on CSS",
 	NULL
 };
 
@@ -67,14 +81,14 @@ const MeleeCodeLineItem cfLineItem = {
  ***************************************/
 const MeleeCodeOption versionOptionNtsc = {
 	1,
-	"NTSC",
+	"Off",
 	0,
 	NULL,
 };
 
 const MeleeCodeOption versionOptionPal = {
 	2,
-	"PAL",
+	"On",
 	g_pal_size,
 	g_pal,
 };
@@ -85,18 +99,19 @@ const MeleeCodeOption *versionOptions[MELEE_CODES_VERSION_OPTION_COUNT] = {
 };
 
 static const char *versionDescription[] = {
-	"Emulates a memory card in",
-	"Slot A using a .raw file.",
+	"When enabled, applies a",
+	"patch which converts a 1.02",
+	"ISO to include all PAL",
+	"changes"
 	"",
-	"Disable this option if you",
-	"want to use a real memory",
-	"card on an original Wii.",
+	"You MUST use an NTSC 1.02",
+	"ISO for Slippi to work",
 	NULL
 };
 
 const MeleeCodeLineItem versionLineItem = {
 	MELEE_CODES_VERSION_OPTION_ID, // identifier
-	"Game Version",
+	"PAL Patch",
 	versionDescription,
 	1,
 	MELEE_CODES_VERSION_OPTION_COUNT,
@@ -116,22 +131,22 @@ const MeleeCodeOption modsOptionOff = {
 const MeleeCodeOption modsOptionStealth = {
 	2,
 	"Stealth",
-	0,
-	NULL,
+	g_mods_stealth_size,
+	g_mods_stealth,
 };
 
 const MeleeCodeOption modsOptionTournament = {
 	3,
 	"Tournament",
-	0,
-	NULL,
+	g_mods_tournament_size,
+	g_mods_tournament,
 };
 
 const MeleeCodeOption modsOptionFriendlies = {
 	4,
 	"Friendlies",
-	0,
-	NULL,
+	g_mods_friendlies_size,
+	g_mods_friendlies,
 };
 
 const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
@@ -142,12 +157,15 @@ const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
 };
 
 static const char *modsDescription[] = {
-	"Emulates a memory card in",
-	"Slot A using a .raw file.",
+	"Game mods to apply",
 	"",
-	"Disable this option if you",
-	"want to use a real memory",
-	"card on an original Wii.",
+	"[Stealth] Neutral Spawns",
+	"Hide tags when invisible",
+	"Preserve tag in rotation",
+	"[Tournament] D-Pad Rumble",
+	"Stage Striking",
+	"[Friendlies] Skip Results",
+	"Salty Runback (A+B)",
 	NULL
 };
 
@@ -173,15 +191,15 @@ const MeleeCodeOption lagReductionOptionOff = {
 const MeleeCodeOption lagReductionOptionPd = {
 	2,
 	"PD",
-	0,
-	NULL,
+	g_lag_pd_size,
+	g_lag_pd,
 };
 
 const MeleeCodeOption lagReductionOptionPdVb = {
 	3,
 	"PD + VB",
-	0,
-	NULL,
+	g_lag_pdvb_size,
+	g_lag_pdvb,
 };
 
 const MeleeCodeOption *lagReductionOptions[MELEE_CODES_LAG_REDUCTION_OPTION_COUNT] = {
@@ -191,13 +209,16 @@ const MeleeCodeOption *lagReductionOptions[MELEE_CODES_LAG_REDUCTION_OPTION_COUN
 };
 
 static const char *lagReductionDescription[] = {
-	"Emulates a memory card in",
-	"Slot A using a .raw file.",
+	"Lag reduction codes",
 	"",
-	"Disable this option if you",
-	"want to use a real memory",
-	"card on an original Wii.",
-	NULL
+	"1. PD is polling drift fix",
+	"it will make sure inputs",
+	"are polled consistently.",
+	"Average 4.17ms reduction",
+	"2. PD+VB additionally",
+	"removes one frame of lag.",
+	"Average 20.83ms reduction",
+	NULL,
 };
 
 const MeleeCodeLineItem lagReductionLineItem = {
@@ -210,20 +231,20 @@ const MeleeCodeLineItem lagReductionLineItem = {
 };
 
 /***************************************
- * Mods Options
+ * Ruleset Options
  ***************************************/
 const MeleeCodeOption rulesetOptionVanilla = {
 	1,
-	"Vanilla",
+	"Off",
 	0,
 	NULL,
 };
 
 const MeleeCodeOption rulesetOptionFrozenStadium = {
 	2,
-	"Frz Stadium",
-	0,
-	NULL,
+	"Frz Pkm",
+	g_frozen_size,
+	g_frozen,
 };
 
 const MeleeCodeOption *rulesetOptions[MELEE_CODES_RULESET_OPTION_COUNT] = {
@@ -232,12 +253,12 @@ const MeleeCodeOption *rulesetOptions[MELEE_CODES_RULESET_OPTION_COUNT] = {
 };
 
 static const char *rulesetDescription[] = {
-	"Emulates a memory card in",
-	"Slot A using a .raw file.",
+	"Codes that change the",
+	"rules of the game.",
 	"",
-	"Disable this option if you",
-	"want to use a real memory",
-	"card on an original Wii.",
+	"Frz Pkm will freeze stadium",
+	"such that replays/mirroring",
+	"will continue to work.",
 	NULL
 };
 
