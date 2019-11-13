@@ -12,6 +12,9 @@ static u8 keepAliveMsgBuf[KEEPALIVE_MSG_BUF_SIZE];
 static u8 replayMsgBuf[REPLAY_MSG_BUF_SIZE];
 static u8 handshakeMsgBuf[HANDSHAKE_MSG_BUF_SIZE];
 
+// Payloads that sometimes need to be returned by readClientMessage
+static HandshakeClientPayload handshakeClientPayload;
+
 
 /* initMessage()
  * Given a buffer 'buf' and length 'len, return a fresh UBJSON object context
@@ -121,22 +124,24 @@ ClientMsg readClientMessage(u8* buf, u32 len)
 
 	ClientMsg msg = { 0, NULL };
 
-	if (len < 8) {
+	if (len <= 8) {
 		return msg;
 	}
 
 	msg.type = buf[8];
 	switch (msg.type) {
 	case MSG_HANDSHAKE: ; // wtf C? apparently I need this semicolon
-		HandshakeClientPayload payload = { 0, 0 };
+		HandshakeClientPayload *payload = &handshakeClientPayload;
 
-		memcpy(&payload.cursor, &buf[33], 8);
-		memcpy(&payload.clientToken, &buf[60], 4);
+		memcpy(&payload->cursor, &buf[33], 8);
+		memcpy(&payload->clientToken, &buf[60], 4);
+		
+		payload->isRealtime = buf[76] == 0x54; // Check if realtime bool equals "T"
 
 		// TODO: Figure out why dbgprintf crashes Nintendont in this file
 		// dbgprintf("[Tok] Val: %d\r\n", payload.clientToken);
 
-		msg.payload = &payload;
+		msg.payload = payload;
 		break;
 	}
 

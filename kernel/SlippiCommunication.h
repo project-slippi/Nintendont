@@ -28,6 +28,7 @@ typedef struct ClientMsg {
 typedef struct HandshakeClientPayload {
 	u64 cursor;
 	u32 clientToken;
+	bool isRealtime;
 } HandshakeClientPayload;
 
 // Create server messages to send

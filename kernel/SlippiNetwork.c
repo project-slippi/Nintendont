@@ -154,6 +154,14 @@ u32 getClientMessage(s32 socket, u32 waitTimeMs)
 
 		if (pos >= msgSize) {
 			// If pos is now equal to message size, we have finished reading the message
+
+			// Uncomment this to debug messages from client and also to determine where data
+			// is stored in the message
+			// int i;
+			// for (i = 0; i < msgSize; i++) {
+			// 	dbgprintf("[%i] %i | %x\r\n", i, clientMsg[i], clientMsg[i]);
+			// }
+
 			return pos;
 		}
 	}
@@ -226,8 +234,6 @@ void killClient()
  * Give some naive indication of whether or not a client has hung up. If our
  * sendto() here returns some error, this probably indicates that we can stop
  * talking to the current client and reset the socket.
- *
- * TODO: Find a way of accomplishing this without sending any data?
  */
 s32 checkAlive(void)
 {
@@ -238,7 +244,7 @@ s32 checkAlive(void)
 		return 0;
 
 	// Only check if we haven't detected any communication
-	if (TimerDiffSeconds(client.timestamp) < 2)
+	if (TimerDiffMs(client.timestamp) < 500)
 		return 0;
 
 	// Send a keep alive message to the client
@@ -273,7 +279,11 @@ s32 startServer()
 	if (server_retries >= MAX_SERVER_RETRIES)
 	{
 		// Maybe shutdown the network thread here?
-		dbgprintf("WARN: MAX_SERVER_RETRIES exceeded, giving up\r\n");
+		if (server_retries == MAX_SERVER_RETRIES) {
+			dbgprintf("WARN: MAX_SERVER_RETRIES exceeded, giving up\r\n");
+			server_retries += 1;
+		}
+		
 		return -1;
 	}
 
@@ -283,6 +293,11 @@ s32 startServer()
 		dbgprintf("WARN: server socket returned %d\r\n", server_sock);
 		server_retries += 1;
 		server_sock = -1;
+
+		// Wait before trying again? Seems like if it fails on WiFi with -39 it would just continue
+		// failing anyway
+		mdelay(1000);
+
 		return server_sock;
 	}
 
@@ -312,7 +327,7 @@ u64 determineReadCursor(HandshakeClientPayload* payload, bool isFreshClient) {
 	u64 result = curWritePos;
 
 	if (isFreshClient) {
-		dbgprintf("New client, fresh cursor generation.");
+		dbgprintf("New client, fresh cursor generation.\r\n");
 
 		// In the case where we get a brand new client, start them at the begining of the current
 		// game or at the write pos
@@ -386,7 +401,11 @@ bool createClient(s32 socket)
 	client.timestamp = read32(HW_TIMER);
 	client.version = CLIENT_LATEST;
 
-	setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY, (void*)&flags, sizeof(flags));
+	if (payload->isRealtime) {
+		// If realtime mode, turn off nagle's algorithm
+		dbgprintf("Realtime mode is on, turning off nagle's algorithm...\r\n");
+		setsockopt(top_fd, client.socket, IPPROTO_TCP, TCP_NODELAY, (void*)&flags, sizeof(flags));
+	}
 
 	dbgprintf("Sending token: %u\r\n", client.token);
 
