@@ -39,7 +39,7 @@ extern char __slippi_network_stack_addr, __slippi_network_stack_size;
 static u32 SlippiNetworkHandlerThread(void *arg);
 
 // State of the server running in this thread
-#define SERVER_PORT	666
+#define SERVER_PORT	51441
 static int server_sock ALIGNED(32);
 static struct sockaddr_in server ALIGNED(32) = {
 	.sin_family	= AF_INET,
