@@ -3,9 +3,9 @@
 
 #include "global.h"
 
-#define KEEPALIVE_MSG_BUF_SIZE 	20
-#define REPLAY_MSG_BUF_SIZE 		MAX_TX_SIZE
-#define HANDSHAKE_MSG_BUF_SIZE 		128
+#define KEEPALIVE_MSG_BUF_SIZE 20
+#define REPLAY_MSG_BUF_SIZE MAX_TX_SIZE + 500 // Max transfer size plus some for other data
+#define HANDSHAKE_MSG_BUF_SIZE 128
 
 typedef struct SlippiCommMsg {
 	u32 size;
@@ -33,8 +33,8 @@ typedef struct HandshakeClientPayload {
 
 // Create server messages to send
 SlippiCommMsg genKeepAliveMsg();
-SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos);
-SlippiCommMsg genHandshakeMsg(u32 token);
+SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos, u64 nextPos, bool forcePos);
+SlippiCommMsg genHandshakeMsg(u32 token, u64 readPos);
 
 // Read client messages received
 ClientMsg readClientMessage(u8* buf, u32 len);

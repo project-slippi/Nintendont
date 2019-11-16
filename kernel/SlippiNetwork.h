@@ -11,7 +11,10 @@
 
 // This is the max amount of bytes that will be transferred on a single cycle. See comment in
 // SlippiNetwork for more info. Should definitely be greater than at least 1500
-#define MAX_TX_SIZE 3000
+// Update 11/15/2019: I increased this to allow specifically WiFi connections to "catch up" faster
+// when the fall behind. Seems like the memory limit for this is about 61k before Nintendont fails
+// to build. Trying 61k with 4 ICs still causes my network to back up and fail.
+#define MAX_TX_SIZE 25000
 
 #define FB_TOKEN	0x00000000
 union Token {

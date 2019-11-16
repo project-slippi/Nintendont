@@ -68,7 +68,7 @@ SlippiCommMsg genKeepAliveMsg()
 /* genReplayMsg()
  * Create a new replay data message.
  */
-SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos)
+SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos, u64 nextPos, bool forcePos)
 {
 	ubjw_context_t* ctx = initMessage(replayMsgBuf, REPLAY_MSG_BUF_SIZE);
 
@@ -81,6 +81,10 @@ SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos)
 	ubjw_begin_object(ctx, UBJ_MIXED, 0);
 	ubjw_write_key(ctx, "pos");
 	ubjw_write_buffer(ctx, (u8*)&readPos, UBJ_UINT8, 8);
+	ubjw_write_key(ctx, "nextPos");
+	ubjw_write_buffer(ctx, (u8*)&nextPos, UBJ_UINT8, 8);
+	ubjw_write_key(ctx, "forcePos");
+	ubjw_write_bool(ctx, forcePos);
 	ubjw_write_key(ctx, "data");
 	ubjw_write_buffer(ctx, data, UBJ_UINT8, len);
 
@@ -91,7 +95,7 @@ SlippiCommMsg genReplayMsg(u8* data, u32 len, u64 readPos)
 /* genHandshakeMsg()
  * Create a new handshake message.
  */
-SlippiCommMsg genHandshakeMsg(u32 token)
+SlippiCommMsg genHandshakeMsg(u32 token, u64 readPos)
 {
 	ubjw_context_t* ctx = initMessage(handshakeMsgBuf, HANDSHAKE_MSG_BUF_SIZE);
 
@@ -107,7 +111,9 @@ SlippiCommMsg genHandshakeMsg(u32 token)
 	ubjw_write_key(ctx, "nintendontVersion");
 	ubjw_write_string(ctx, NIN_VERSION_SHORT_STRING);
 	ubjw_write_key(ctx, "clientToken");
-	ubjw_write_buffer(ctx, (u8*)&token, UBJ_UINT8, 4); // TODO: Use real instance token
+	ubjw_write_buffer(ctx, (u8*)&token, UBJ_UINT8, 4);
+	ubjw_write_key(ctx, "pos");
+	ubjw_write_buffer(ctx, (u8*)&readPos, UBJ_UINT8, 8);
 
 	return finishMessage(ctx, handshakeMsgBuf);
 }

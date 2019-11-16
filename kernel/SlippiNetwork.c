@@ -25,8 +25,8 @@
  */
 
 // Size of our local read buffer. This is the max amount of bytes we are willing to read from
-// SlippiMemory. We make sure to give some room off of MAX_TX_SIZE to fit the ubjson comm data
-#define READ_BUF_SIZE	MAX_TX_SIZE - 500
+// SlippiMemory
+#define READ_BUF_SIZE	MAX_TX_SIZE
 #define CLIENT_MSG_BUF_SIZE 1024
 
 #define THREAD_CYCLE_TIME_MS	1	// Thread loop interval (ms)
@@ -62,6 +62,8 @@ u32 SlippiServerStarted = 0;		// used by kernel/main.c
 // Shared state from SlippiMemory.c
 extern struct recordingState gameState;
 
+// Used to determine whether to force a position on a client
+static bool overflowEncountered;
 
 /* SlippiNetworkInit()
  * Dispatch the server thread. This should only be run once in kernel/main.c
@@ -401,6 +403,9 @@ bool createClient(s32 socket)
 	client.timestamp = read32(HW_TIMER);
 	client.version = CLIENT_LATEST;
 
+	// Clear potential overflow flag
+	overflowEncountered = false;
+
 	if (payload->isRealtime) {
 		// If realtime mode, turn off nagle's algorithm
 		dbgprintf("Realtime mode is on, turning off nagle's algorithm...\r\n");
@@ -410,7 +415,7 @@ bool createClient(s32 socket)
 	dbgprintf("Sending token: %u\r\n", client.token);
 
 	// Send a handshake response back to the client
-	SlippiCommMsg handshakeMsg = genHandshakeMsg(client.token);
+	SlippiCommMsg handshakeMsg = genHandshakeMsg(client.token, client.cursor);
 	res = sendto(top_fd, client.socket, handshakeMsg.msg, handshakeMsg.size, 0);
 	if (res < 0) {
 		dbgprintf("Failed to send handshake response. %d\r\n", res);
@@ -456,6 +461,7 @@ void listenForClient()
  */
 static u8 readBuf[READ_BUF_SIZE];
 static SlpGameReader reader;
+static u32 maxBufUsage = 0;
 s32 handleFileTransfer()
 {
 	// Do nothing if we aren't connected to a client
@@ -470,6 +476,7 @@ s32 handleFileTransfer()
 		// On an overflow read, reset to the write cursor
 		if (err == SLP_READ_OVERFLOW)
 		{
+			overflowEncountered = true;
 			client.cursor = SlippiRestoreReadPos();
 			dbgprintf("WARN: Overflow read error detected. Reset to: %X\r\n", client.cursor);
 		}
@@ -482,7 +489,10 @@ s32 handleFileTransfer()
 		return 0;
 
 	// Actually send data to the client
-	SlippiCommMsg replayMsg = genReplayMsg(readBuf, reader.lastReadResult.bytesRead, client.cursor);
+	SlippiCommMsg replayMsg = genReplayMsg(
+		readBuf, reader.lastReadResult.bytesRead, client.cursor,
+		client.cursor + reader.lastReadResult.bytesRead, overflowEncountered
+	);
 	s32 res = sendto(top_fd, client.socket, replayMsg.msg, replayMsg.size, 0);
 
 	// If sendto() returns < 0, the client has disconnected
@@ -493,11 +503,16 @@ s32 handleFileTransfer()
 		return res;
 	}
 
+	// if (reader.lastReadResult.bytesRead >= maxBufUsage) {
+	// 	dbgprintf("[NEW BUF USAGE MAX] Old: %d, New: %d\r\n", maxBufUsage, reader.lastReadResult.bytesRead);
+	// 	maxBufUsage = reader.lastReadResult.bytesRead;
+	// }
 	// dbgprintf("Bytes read: %d | Last frame %d\r\n", reader.lastReadResult.bytesRead, reader.metadata.lastFrame);
 
 	// When we successfully transmit, update the client's cursor
 	client.timestamp = read32(HW_TIMER);
 	client.cursor += reader.lastReadResult.bytesRead;
+	overflowEncountered = false;
 
 	return 0;
 }
