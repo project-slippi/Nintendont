@@ -1454,6 +1454,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[index]];
 
 					// Set the value of the option in the config
+					ctx->saveSettings = true; // Indicate we need to save
 					ncfg->MeleeCodeOptions[item->identifier] = option->value;
 					ctx->redraw = true;
 					break;
