@@ -6,7 +6,7 @@
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
-#define NIN_CFG_VERSION		0x0000000A
+#define NIN_CFG_VERSION		0x0000000B
 
 #define NIN_CFG_MAXPAD 4
 
@@ -24,7 +24,7 @@ typedef struct NIN_CFG
 	signed char		VideoOffset;
 	unsigned char		Unused;
 	unsigned int		UseUSB;			// 0 for SD, 1 for USB
-	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID];
+	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID + 1]; // IDs are 0 indexed so add 1
 } NIN_CFG;
 
 enum ninconfigbitpos
