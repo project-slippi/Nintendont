@@ -88,13 +88,13 @@ s32 SlippiNetworkInit()
 }
 
 
-/* waitForMessage()
+/* pollSocket()
  * Helper function - polls a socket with some timeout, waiting for a message 
  * to arrive. If the socket is readable (we received a message), immediately 
  * return true. Otherwise, if the call times out (no message arrived), return 
  * false. The caller is responsible for actually reading bytes off the socket.
  */
-bool waitForMessage(s32 socket, u32 timeout_ms)
+bool pollSocket(s32 socket, u32 timeout_ms)
 {
 	// Don't do anything if the socket is invalid
 	if (socket < 0) return 0;
@@ -114,13 +114,13 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 }
 
 
-/* getClientMessage()
+/* waitForClientMessage()
  * Wait up to 'waitTimeMs' in a loop until we receive a handshake message from 
  * some 'socket'. Return the the size of the message we've received, otherwise
  * return '-1' if we've timed out (the client never sent a message).
  */
 static u8 clientMsg[CLIENT_MSG_BUF_SIZE];
-u32 getClientMessage(s32 socket, u32 waitTimeMs)
+u32 waitForClientMessage(s32 socket, u32 waitTimeMs)
 {
 	u32 startTime = read32(HW_TIMER);
 	u32 pos = 0;
@@ -129,7 +129,7 @@ u32 getClientMessage(s32 socket, u32 waitTimeMs)
 
 	while (TimerDiffMs(startTime) < waitTimeMs) 
 	{
-		bool hasData = waitForMessage(socket, 100);
+		bool hasData = pollSocket(socket, 100);
 		if (!hasData) {
 			dbgprintf("[Client Msg] No data\r\n");
 			continue;
@@ -170,6 +170,10 @@ u32 getClientMessage(s32 socket, u32 waitTimeMs)
 	return -1;
 }
 
+void getClientMessages()
+{
+	
+}
 
 /* generateToken()
  * Generate a suitable token representing a client's session.
@@ -368,10 +372,10 @@ bool createClient(s32 socket)
 	dbgprintf("HSHK: Waiting ...\r\n");
 
 	// Wait for a handshake message from the client
-	s32 msgSize = getClientMessage(socket, HANDSHAKE_TIMEOUT_MS);
+	s32 msgSize = waitForClientMessage(socket, HANDSHAKE_TIMEOUT_MS);
 	if (msgSize < 0)
 	{
-		dbgprintf("[Handshake] getClientMessage returned %d\r\n", msgSize);
+		dbgprintf("[Handshake] waitForClientMessage returned %d\r\n", msgSize);
 		dbgprintf("[Handshake] Timed out waiting for handshake\r\n", msgSize);
 		close(top_fd, socket);
 		return false;
@@ -423,6 +427,8 @@ bool createClient(s32 socket)
 
 	return true;
 }
+
+
 
 /* listenForClient()
  * If no remote host is connected, block until a client to connects to the
