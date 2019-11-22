@@ -765,11 +765,11 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 		return true;
 	}
 
-	if (clearCheats)
-	{
-		if ((ncfg->Config & NIN_CFG_CHEATS))
-			ncfg->Config = ncfg->Config & ~NIN_CFG_CHEATS;
-	}
+	// if (clearCheats)
+	// {
+	// 	if ((ncfg->Config & NIN_CFG_CHEATS))
+	// 		ncfg->Config = ncfg->Config & ~NIN_CFG_CHEATS;
+	// }
 
 	if (ctx->redraw)
 	{
