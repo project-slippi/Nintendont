@@ -764,12 +764,12 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 		ctx->selected = true;
 		return true;
 	}
-
-	if (clearCheats)
-	{
-		if ((ncfg->Config & NIN_CFG_CHEATS))
-			ncfg->Config = ncfg->Config & ~NIN_CFG_CHEATS;
-	}
+	// we disable the following block because it isn't intuitive to the user that cheats would be disabled
+	// if (clearCheats) // this will reset the cheats setting whenever the user navigates in the game list
+	// {
+	// 	if ((ncfg->Config & NIN_CFG_CHEATS))
+	// 		ncfg->Config = ncfg->Config & ~NIN_CFG_CHEATS;
+	// }
 
 	if (ctx->redraw)
 	{
