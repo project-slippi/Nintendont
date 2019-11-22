@@ -3346,59 +3346,18 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		}
 	}
 
-
-	/* If the user has "Cheats" enabled, copy a GCT into RAM.
-	 * Try to save the GCT length for later, in case we're booting Melee.
-	 */
-
-	u32 gct_len = 0;
-	bool copied_gct	= false;
-	if (cheatsWanted && useipl == 0 )
-	{
-		FIL CodeFD;
-		if (Check_Cheats() == 0 && f_open_main_drive(&CodeFD, cheatPath, FA_OPEN_EXISTING|FA_READ) == FR_OK)
-		{
-			gct_len = CodeFD.obj.objsize;
-			if (CodeFD.obj.objsize > max_gct_size)
-				dbgprintf("Patch:GCT exceeds region size (%i bytes)\r\n", max_gct_size);
-			else {
-				void *CMem = malloc(CodeFD.obj.objsize);
-				if( f_read(&CodeFD, CMem, CodeFD.obj.objsize, &read) == FR_OK )
-				{
-					memcpy((void*)gct_cursor, CMem, CodeFD.obj.objsize);
-					sync_after_write((void*)gct_cursor, CodeFD.obj.objsize);
-					dbgprintf("Patch:Copied %s to memory at 0x%08x\r\n", cheatPath, gct_cursor);
-					copied_gct = true;
-				}
-				else { dbgprintf("Patch:Failed to read %s\r\n", cheatPath); }
-				free( CMem );
-			}
-			f_close( &CodeFD );
-		}
-		else { dbgprintf("Patch:Failed to open/find GCT:\"%s\"\r\n", cheatPath ); }
-	}
-
-
 	/* When booting Melee, deal with Slippi patches and Gecko codes toggled by users.
 	 *
-	 *	(a) If we copied a GCT, move our cursor onto the footer.
-	 *	    Otherwise, build a GCT header in RAM before copying codes.
-	 *	(b) Copy over Slippi core patches
-	 *	(c) Apply any user-toggleable Gecko codes
+	 *	(a) Copy over Slippi core patches
+	 *	(b) Apply any user-toggleable Gecko codes
 	 */
 
 	if (MeleeVersion)
 	{
-		if (copied_gct)
-		{
-			gct_cursor += gct_len - 8;
-		}
-		else
-		{
-			memcpy((void*)gct_cursor, GCT_HEADER, sizeof(GCT_HEADER));
-			sync_after_write((void*)gct_cursor, sizeof(GCT_HEADER));
-			gct_cursor += sizeof(GCT_HEADER);
-		}
+		// Write GCT header
+		memcpy((void*)gct_cursor, GCT_HEADER, sizeof(GCT_HEADER));
+		sync_after_write((void*)gct_cursor, sizeof(GCT_HEADER));
+		gct_cursor += sizeof(GCT_HEADER);
 
 		// Always apply core Slippi patches when running Melee. If PortA option is selected, use
 		// PortA codes. This is used when using a USB Gecko
@@ -3456,6 +3415,60 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		}
 
 		dbgprintf("Patch:Apply GCT footer 0x%08x\r\n", gct_cursor);
+
+		// Apply GCT footer
+		memcpy((void*)gct_cursor, GCT_FOOTER, sizeof(GCT_FOOTER));
+		sync_after_write((void*)gct_cursor, sizeof(GCT_FOOTER));
+		gct_cursor += sizeof(GCT_FOOTER);
+	}
+
+
+		/* If the user has "Cheats" enabled, copy a GCT into RAM.
+	 * Try to save the GCT length for later, in case we're booting Melee.
+	 */
+
+	if (cheatsWanted && useipl == 0 )
+	{
+		if (MeleeVersion)
+		{
+			// Melee codes were paplied, we are going to overwrite the footer and re-write it later
+			gct_cursor -= sizeof(GCT_FOOTER);
+		} else {
+			// If melee codes were not applied, write GCT header
+			memcpy((void*)gct_cursor, GCT_HEADER, sizeof(GCT_HEADER));
+			sync_after_write((void*)gct_cursor, sizeof(GCT_HEADER));
+			gct_cursor += sizeof(GCT_HEADER);
+		}
+
+		FIL CodeFD;
+		if (Check_Cheats() == 0 && f_open_main_drive(&CodeFD, cheatPath, FA_OPEN_EXISTING|FA_READ) == FR_OK)
+		{
+			u32 gct_len = CodeFD.obj.objsize;
+			u32 gct_formattingSize = sizeof(GCT_FOOTER) + sizeof(GCT_HEADER);
+			u32 gct_codeLen = gct_len - gct_formattingSize;
+
+			if (gct_len > max_gct_size) {
+				// TODO: Make this cap work with melee codes applied too?
+				dbgprintf("Patch:GCT exceeds region size (%i bytes)\r\n", max_gct_size);
+			} else if (gct_len < gct_formattingSize) {
+				dbgprintf("Patch:GCT not large enough to be valid\r\n");
+			} else {
+				void *CMem = malloc(gct_len);
+				if( f_read(&CodeFD, CMem, gct_len, &read) == FR_OK )
+				{
+					memcpy((void*)gct_cursor, (void*)(CMem + sizeof(GCT_HEADER)), gct_codeLen);
+					sync_after_write((void*)gct_cursor, gct_codeLen);
+					dbgprintf("Patch:Copied %s to memory at 0x%08x, %d bytes\r\n", cheatPath, gct_cursor, gct_codeLen);
+					gct_cursor += gct_codeLen;
+				}
+				else { dbgprintf("Patch:Failed to read %s\r\n", cheatPath); }
+				free( CMem );
+			}
+			f_close( &CodeFD );
+
+			dbgprintf("Patch:Apply GCT footer 0x%08x\r\n", gct_cursor);
+		}
+		else { dbgprintf("Patch:Failed to open/find GCT:\"%s\"\r\n", cheatPath ); }
 
 		// Apply GCT footer
 		memcpy((void*)gct_cursor, GCT_FOOTER, sizeof(GCT_FOOTER));
