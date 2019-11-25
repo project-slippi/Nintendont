@@ -601,7 +601,8 @@ typedef struct _MenuCtx
 	// Settings menu.
 	struct {
 		u32 settingPart;	// 0 == left column; 1 == right column
-		s32 posX;		// Selected setting index.
+		s32 posX;		    // Selected setting index.
+		u32 page;           // 0 == normal; 1 == slippi
 	} settings;
 } MenuCtx;
 
@@ -918,7 +919,7 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
  */
 static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 {
-	if (ctx->settings.settingPart == 0)
+	if (ctx->settings.page == 0)
 	{
 		switch (ctx->settings.posX)
 		{
@@ -1130,20 +1131,18 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 
 	// Number of entries in the right settings column. Remember to change this
 	// when adding any toggleable settings to the right-hand part of the menu.
-	int col2Length = 10;
 
 	if (FPAD_Down_Repeat(ctx))
 	{
 		// Down: Move the cursor down by 1 setting.
-		if (ctx->settings.settingPart == 0) {
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+30, SettingY(ctx->settings.posX), " " );
-		} else {
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+300, SettingY(ctx->settings.posX), " " );
-		}
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(ctx->settings.posX), " " );
 
 		ctx->settings.posX++;
-		if (ctx->settings.settingPart == 0)
+		if (ctx->settings.page == 0)
 		{
+			if (ctx->settings.posX > NIN_SETTINGS_LAST - 1) { // might want to clean up the enum so we don't have to subtract 1
+				ctx->settings.posX = 0;
+			}
 			// Some items are hidden if certain values aren't set.
 			if (((ncfg->VideoMode & NIN_VID_FORCE) == 0) &&
 			    (ctx->settings.posX == NIN_SETTINGS_VIDEOMODE))
@@ -1162,54 +1161,39 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			}
 		}
 
-		if (ctx->settings.settingPart == 1)
+		if (ctx->settings.page == 1)
 		{
-			// Handle right side special cases
+			// Handle slippi page position
+			if (ctx->settings.posX > NIN_SLIPPI_SETTINGS_LAST)
+			{
+				ctx->settings.posX = 0;
+			}
 
-			if (ctx->settings.posX == 3 || ctx->settings.posX == 4)
+			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Settings 3 and 4 are skipped
 				ctx->settings.posX = 5;
 			}
 		}
 
-		// Check for wraparound, move to opposite column
-		if ((ctx->settings.settingPart == 0 && ctx->settings.posX >= NIN_SETTINGS_LAST) ||
-		    (ctx->settings.settingPart == 1 && ctx->settings.posX >= col2Length))
-		{
-			ctx->settings.posX = 0;
-			ctx->settings.settingPart ^= 1;
-		}
-
-		
-	
 		ctx->redraw = true;
 
 	}
 	else if (FPAD_Up_Repeat(ctx))
 	{
 		// Up: Move the cursor up by 1 setting.
-		if (ctx->settings.settingPart == 0) {
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+30, SettingY(ctx->settings.posX), " " );
-		} else {
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+300, SettingY(ctx->settings.posX), " " );
-		}
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(ctx->settings.posX), " " );
+
 
 		ctx->settings.posX--;
 
-		// Check for wraparound.
-		if (ctx->settings.posX < 0)
-		{
-			ctx->settings.settingPart ^= 1;
-			if (ctx->settings.settingPart == 0) {
-				ctx->settings.posX = NIN_SETTINGS_LAST - 1;
-			} else {
-				ctx->settings.posX = col2Length - 1;
-			}
-		}
 
-		if (ctx->settings.settingPart == 0)
+		if (ctx->settings.page == 0)
 		{
+			if (ctx->settings.posX < 0)
+			{
+				ctx->settings.posX = NIN_SETTINGS_LAST - 1;
+			}
 			// Some items are hidden if certain values aren't set.
 			if ((!(ncfg->Config & NIN_CFG_MEMCARDEMU)) && (ctx->settings.posX == NIN_SETTINGS_MEMCARDMULTI))
 				ctx->settings.posX--;
@@ -1219,15 +1203,20 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 				ctx->settings.posX--;
 		}
 
-		if (ctx->settings.settingPart == 1)
+		if (ctx->settings.page == 1)
 		{
-			// Handle right side special cases
+			// Handle slippi page positioning
+			if (ctx->settings.posX < 0)
+			{
+				ctx->settings.posX = NIN_SLIPPI_SETTINGS_LAST;
+			}
 
-			if (ctx->settings.posX == 3 || ctx->settings.posX == 4)
+			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Settings 3 and 4 are skipped
 				ctx->settings.posX = 2;
 			}
+
 		}
 
 		ctx->redraw = true;
@@ -1239,8 +1228,8 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 	 */
 	if (FPAD_Left_Repeat(ctx))
 	{
-		// Left: Decrement a setting. (Right column only.)
-		if (ctx->settings.settingPart == 0)
+		// Normal Settings: Decrement a setting
+		if (ctx->settings.page == 0)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX)
@@ -1276,8 +1265,8 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 	}
 	else if (FPAD_Right_Repeat(ctx))
 	{
-		// Right: Increment a setting. (Right column only.)
-		if (ctx->settings.settingPart == 0)
+		// Normal Settings: Increment a setting.
+		if (ctx->settings.page == 0)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX)
@@ -1320,7 +1309,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 
 	if( FPAD_OK(0) )
 	{
-		if (ctx->settings.settingPart == 0)
+		if (ctx->settings.page == 0)
 		{
 			// Left column.
 			ctx->saveSettings = true;
@@ -1400,6 +1389,12 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					ncfg->Config ^= (NIN_CFG_SKIP_IPL);
 					//ctx->redraw = true;
 					break;
+				
+				case NIN_SLIPPI_SETTINGS_PAGE:
+					ctx->settings.page = !ctx->settings.page;
+					ctx->settings.posX = 0;
+					ctx->redraw = 1;
+					break;
 
 				default:
 					break;
@@ -1413,9 +1408,9 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			}
 			ctx->redraw = true;
 		}
-		else if (ctx->settings.settingPart == 1)
+		else if (ctx->settings.page == 1)
 		{
-			// Right column.
+			// Slippi page settings
 			switch (ctx->settings.posX) {
 				case 0:
 					// Networking
@@ -1434,6 +1429,12 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					ctx->saveSettings = true;
 					ncfg->Config ^= (NIN_CFG_SLIPPI_PORT_A);
 					ctx->redraw = true;
+					break;
+				
+				case NIN_SLIPPI_SETTINGS_PAGE:
+					ctx->settings.page = !ctx->settings.page;
+					ctx->settings.posX = 0;
+					ctx->redraw = 1;
 					break;
 
 				default: ; // need semicolon to declare variable on next line
@@ -1469,172 +1470,168 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 	{
 		u32 ListLoopIndex = 0;
 
-		// Standard boolean settings.
-		for (; ListLoopIndex < NIN_CFG_BIT_LAST; ListLoopIndex++)
-		{
-			u32 item_color = BLACK;
-
-			// NOTE: Gray out memcard emulation for now
-			if (ListLoopIndex == NIN_CFG_BIT_MEMCARDEMU)
-				item_color = GRAY;
-
-			PrintFormat(
-					MENU_SIZE,
-					item_color,
-					MENU_POS_X+50,
-					SettingY(ListLoopIndex),
-					"%-18s:%s",
-					OptionStrings[ListLoopIndex],
-					(ncfg->Config & (1 << ListLoopIndex)) ? "On " : "Off" );
-		}
-
-		// Language setting.
-		u32 LanIndex = ncfg->Language;
-		if (LanIndex < NIN_LAN_FIRST || LanIndex >= NIN_LAN_LAST) {
-			LanIndex = NIN_LAN_LAST; //Auto
-		}
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+50, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", OptionStrings[ListLoopIndex], LanguageStrings[LanIndex] );
-		ListLoopIndex++;
-
-		// Video mode forcing.
-		u32 VideoModeIndex;
-		u32 VideoModeVal = ncfg->VideoMode & NIN_VID_MASK;
-		switch (VideoModeVal)
-		{
-			case NIN_VID_AUTO:
-				VideoModeIndex = NIN_VID_INDEX_AUTO;
-				break;
-			case NIN_VID_FORCE:
-				VideoModeIndex = NIN_VID_INDEX_FORCE;
-				break;
-			case NIN_VID_FORCE | NIN_VID_FORCE_DF:
-				VideoModeIndex = NIN_VID_INDEX_FORCE_DF;
-				break;
-			case NIN_VID_NONE:
-				VideoModeIndex = NIN_VID_INDEX_NONE;
-				break;
-			default:
-				ncfg->VideoMode &= ~NIN_VID_MASK;
-				ncfg->VideoMode |= NIN_VID_AUTO;
-				VideoModeIndex = NIN_VID_INDEX_AUTO;
-				break;
-		}
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+50, SettingY(ListLoopIndex),
-			    "%-18s:%-18s", OptionStrings[ListLoopIndex], VideoStrings[VideoModeIndex] );
-		ListLoopIndex++;
-
-		if( ncfg->VideoMode & NIN_VID_FORCE )
-		{
-			// Video mode selection.
-			// Only available if video mode is Force or Force (Deflicker).
-			VideoModeVal = ncfg->VideoMode & NIN_VID_FORCE_MASK;
-			u32 VideoTestVal = NIN_VID_FORCE_PAL50;
-			for (VideoModeIndex = 0; (VideoTestVal <= NIN_VID_FORCE_MPAL) && (VideoModeVal != VideoTestVal); VideoModeIndex++) {
-				VideoTestVal <<= 1;
-			}
-
-			if ( VideoModeVal < VideoTestVal )
+		if (ctx->settings.page == 0) {
+			// Standard boolean settings.
+			for (; ListLoopIndex < NIN_CFG_BIT_LAST; ListLoopIndex++)
 			{
-				ncfg->VideoMode &= ~NIN_VID_FORCE_MASK;
-				ncfg->VideoMode |= NIN_VID_FORCE_NTSC;
-				VideoModeIndex = NIN_VID_INDEX_FORCE_NTSC;
+				u32 item_color = BLACK;
+
+				// NOTE: Gray out memcard emulation for now
+				if (ListLoopIndex == NIN_CFG_BIT_MEMCARDEMU)
+					item_color = GRAY;
+
+				PrintFormat(
+						MENU_SIZE,
+						item_color,
+						MENU_POS_X+50,
+						SettingY(ListLoopIndex),
+						"%-18s:%s",
+						OptionStrings[ListLoopIndex],
+						(ncfg->Config & (1 << ListLoopIndex)) ? "On " : "Off" );
+			}
+			// Language setting.
+			u32 LanIndex = ncfg->Language;
+			if (LanIndex < NIN_LAN_FIRST || LanIndex >= NIN_LAN_LAST) {
+				LanIndex = NIN_LAN_LAST; //Auto
 			}
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+50, SettingY(ListLoopIndex),
-				    "%-18s:%-5s", OptionStrings[ListLoopIndex], VideoModeStrings[VideoModeIndex] );
-		}
-		ListLoopIndex++;
+					"%-18s:%-4s", OptionStrings[ListLoopIndex], LanguageStrings[LanIndex] );
+			ListLoopIndex++;
 
-		// Memory card emulation.
-		if ((ncfg->Config & NIN_CFG_MEMCARDEMU) == NIN_CFG_MEMCARDEMU)
-		{
-			u32 MemCardBlocksVal = ncfg->MemCardBlocks;
-			if (MemCardBlocksVal > MEM_CARD_MAX) {
-				MemCardBlocksVal = 0;
+			// Video mode forcing.
+			u32 VideoModeIndex;
+			u32 VideoModeVal = ncfg->VideoMode & NIN_VID_MASK;
+			switch (VideoModeVal)
+			{
+				case NIN_VID_AUTO:
+					VideoModeIndex = NIN_VID_INDEX_AUTO;
+					break;
+				case NIN_VID_FORCE:
+					VideoModeIndex = NIN_VID_INDEX_FORCE;
+					break;
+				case NIN_VID_FORCE | NIN_VID_FORCE_DF:
+					VideoModeIndex = NIN_VID_INDEX_FORCE_DF;
+					break;
+				case NIN_VID_NONE:
+					VideoModeIndex = NIN_VID_INDEX_NONE;
+					break;
+				default:
+					ncfg->VideoMode &= ~NIN_VID_MASK;
+					ncfg->VideoMode |= NIN_VID_AUTO;
+					VideoModeIndex = NIN_VID_INDEX_AUTO;
+					break;
+			}
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+50, SettingY(ListLoopIndex),
+					"%-18s:%-18s", OptionStrings[ListLoopIndex], VideoStrings[VideoModeIndex] );
+			ListLoopIndex++;
+
+			if( ncfg->VideoMode & NIN_VID_FORCE )
+			{
+				// Video mode selection.
+				// Only available if video mode is Force or Force (Deflicker).
+				VideoModeVal = ncfg->VideoMode & NIN_VID_FORCE_MASK;
+				u32 VideoTestVal = NIN_VID_FORCE_PAL50;
+				for (VideoModeIndex = 0; (VideoTestVal <= NIN_VID_FORCE_MPAL) && (VideoModeVal != VideoTestVal); VideoModeIndex++) {
+					VideoTestVal <<= 1;
+				}
+
+				if ( VideoModeVal < VideoTestVal )
+				{
+					ncfg->VideoMode &= ~NIN_VID_FORCE_MASK;
+					ncfg->VideoMode |= NIN_VID_FORCE_NTSC;
+					VideoModeIndex = NIN_VID_INDEX_FORCE_NTSC;
+				}
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X+50, SettingY(ListLoopIndex),
+						"%-18s:%-5s", OptionStrings[ListLoopIndex], VideoModeStrings[VideoModeIndex] );
+			}
+			ListLoopIndex++;
+
+			// Memory card emulation.
+			if ((ncfg->Config & NIN_CFG_MEMCARDEMU) == NIN_CFG_MEMCARDEMU)
+			{
+				u32 MemCardBlocksVal = ncfg->MemCardBlocks;
+				if (MemCardBlocksVal > MEM_CARD_MAX) {
+					MemCardBlocksVal = 0;
+				}
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+						"%-18s:%-4d%s", OptionStrings[ListLoopIndex], MEM_CARD_BLOCKS(MemCardBlocksVal), MemCardBlocksVal > 2 ? "Unstable" : "");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex+1),
+						"%-18s:%-4s", OptionStrings[ListLoopIndex+1], (ncfg->Config & (NIN_CFG_MC_MULTI)) ? "On " : "Off");
+			}
+			ListLoopIndex+=2;
+
+			// Patch PAL50.
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Patch PAL50", (ncfg->VideoMode & (NIN_VID_PATCH_PAL50)) ? "On " : "Off");
+			ListLoopIndex++;
+
+			// Skip GameCube IPL
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Skip IPL", (ncfg->Config & (NIN_CFG_SKIP_IPL)) ? "Yes" : "No ");
+			ListLoopIndex++;
+
+			// Video width.
+			char vidWidth[10];
+			if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120) {
+				ncfg->VideoScale = 0;
+				snprintf(vidWidth, sizeof(vidWidth), "Auto");
+			} else {
+				snprintf(vidWidth, sizeof(vidWidth), "%i", ncfg->VideoScale + 600);
+			}
+
+			char vidOffset[10];
+			if (ncfg->VideoOffset < -20 || ncfg->VideoOffset > 20) {
+				ncfg->VideoOffset = 0;
+			}
+			snprintf(vidOffset, sizeof(vidOffset), "%i", ncfg->VideoOffset);
+
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Video Width", vidWidth);
+			ListLoopIndex++;
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Screen Position", vidOffset);
+			ListLoopIndex++;
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"Slippi Settings");
+		} else {
+			ListLoopIndex = 0; //reset on other side
+
+			// Networking
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Slippi Networking", (ncfg->Config & (NIN_CFG_NETWORK)) ? "Yes" : "No ");
+			ListLoopIndex++;
+
+			// Slippi USB
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Slippi File Write", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "Yes" : "No ");
+			ListLoopIndex++;
+
+			// Slippi Port A
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Slippi on Port A", (ncfg->Config & (NIN_CFG_SLIPPI_PORT_A)) ? "Yes" : "No ");
+			ListLoopIndex += 2;
+
+			PrintFormat(14, GREEN, MENU_POS_X + 50, SettingY(ListLoopIndex), "MELEE CODES");
+			ListLoopIndex++;
+
+			const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+			
+			int i;
+			for (i = 0; i < codeConfig->lineItemCount; i++) {
+					const MeleeCodeLineItem *item = codeConfig->items[i];
+					const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
+
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+							"%-15s:%s", item->name, option->name);
+					ListLoopIndex++;
 			}
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-				    "%-18s:%-4d%s", OptionStrings[ListLoopIndex], MEM_CARD_BLOCKS(MemCardBlocksVal), MemCardBlocksVal > 2 ? "Unstable" : "");
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex+1),
-				    "%-18s:%-4s", OptionStrings[ListLoopIndex+1], (ncfg->Config & (NIN_CFG_MC_MULTI)) ? "On " : "Off");
-		}
-		ListLoopIndex+=2;
-
-		// Patch PAL50.
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Patch PAL50", (ncfg->VideoMode & (NIN_VID_PATCH_PAL50)) ? "On " : "Off");
-		ListLoopIndex++;
-
-		// Skip GameCube IPL
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Skip IPL", (ncfg->Config & (NIN_CFG_SKIP_IPL)) ? "Yes" : "No ");
-		ListLoopIndex++;
-
-		// Video width.
-		char vidWidth[10];
-		if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120) {
-			ncfg->VideoScale = 0;
-			snprintf(vidWidth, sizeof(vidWidth), "Auto");
-		} else {
-			snprintf(vidWidth, sizeof(vidWidth), "%i", ncfg->VideoScale + 600);
-		}
-
-		char vidOffset[10];
-		if (ncfg->VideoOffset < -20 || ncfg->VideoOffset > 20) {
-			ncfg->VideoOffset = 0;
-		}
-		snprintf(vidOffset, sizeof(vidOffset), "%i", ncfg->VideoOffset);
-
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Video Width", vidWidth);
-		ListLoopIndex++;
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Screen Position", vidOffset);
-		ListLoopIndex++;
-
-
-		/* -----------------------------------
-		 * Redraw options in the right column 
-		 */
-
-		ListLoopIndex = 0; //reset on other side
-
-		// Networking
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Slippi Networking", (ncfg->Config & (NIN_CFG_NETWORK)) ? "Yes" : "No ");
-		ListLoopIndex++;
-
-		// Slippi USB
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Slippi File Write", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "Yes" : "No ");
-		ListLoopIndex++;
-
-		// Slippi Port A
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-			    "%-18s:%-4s", "Slippi on Port A", (ncfg->Config & (NIN_CFG_SLIPPI_PORT_A)) ? "Yes" : "No ");
-		ListLoopIndex += 2;
-
-		PrintFormat(14, DARK_BLUE, MENU_POS_X + 320, SettingY(ListLoopIndex), "MELEE CODES");
-		ListLoopIndex++;
-
-		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
-		
-		int i;
-		for (i = 0; i < codeConfig->lineItemCount; i++) {
-				const MeleeCodeLineItem *item = codeConfig->items[i];
-				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
-
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 320, SettingY(ListLoopIndex),
-						"%-15s:%s", item->name, option->name);
-				ListLoopIndex++;
+					"Regular Settings");
 		}
 
 		// Draw the cursor.
-		if (ctx->settings.settingPart == 0) {
-			u32 cursor_color = BLACK;
-			PrintFormat(MENU_SIZE, cursor_color, MENU_POS_X + 30, SettingY(ctx->settings.posX), ARROW_RIGHT);
-		} else {
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 300, SettingY(ctx->settings.posX), ARROW_RIGHT);
-		}
+		u32 cursor_color = BLACK;
+		PrintFormat(MENU_SIZE, cursor_color, MENU_POS_X + 30, SettingY(ctx->settings.posX), ARROW_RIGHT);
 
 		// Print a description for the selected option.
 		// desc contains pointers to lines, and is
@@ -1770,6 +1767,7 @@ static int SelectGame(void)
 			{
 				// Reset the settings position.
 				ctx.settings.posX = 0;
+				ctx.settings.page = 0;
 				ctx.settings.settingPart = 0;
 			}
 
@@ -1809,7 +1807,7 @@ static int SelectGame(void)
 			else
 			{
 				// Settings menu.
-				PrintButtonActions("Go Back", "Select", "Settings", "Update");
+				PrintButtonActions("Go Back", "Select", "Settings", NULL);
 			}
 
 			if (ctx.menuMode == 0 ||
