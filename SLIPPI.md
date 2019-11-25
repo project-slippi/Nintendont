@@ -39,15 +39,6 @@ following files:
         └── game.iso		# Vanilla NTSC v1.02 ISO
 ```
 
-In order to write Slippi replay files to some storage device, you'll have to
-create a `Slippi/` folder in the root of your drive like this:
-
-```
-/ USB Drive Root
-└── Slippi/			# Folder for Slippi replay data
-```
-
-
 ## Implementation Overview and Development Notes
 This is a running list of noteworthy changes from upstream Nintendont:
 
