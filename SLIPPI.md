@@ -11,10 +11,13 @@ _Project Slippi Nintendont only officially supports the NTSC 1.02 version of Mel
 - Support for writing Slippi replays to a storage device (USB drive/SD card)
 - Support for streaming replay data over Wi-Fi or a USB Ethernet adapter
 - Allows users to toggle various codes before booting into Melee:
-	- Controller fixes (permanent UCF, in-game toggleable UCF/Ardiuno fixes)
-	- Tournament mods (neutral spawns, nametag hide)
-	- Quality-of-live changes
+	- Controller fixes (permanent UCF, stealth UCF, in-game toggleable UCF/Ardiuno fixes)
+	- Stealth Tournament Mods (Neutral Spawns, hidden nametag when invisible, keep nametag during rotation)
+	- Tournament Mods (Stealth Mods, D-Pad for rumble, stage striking)
+	- Quality-of-life Mods (Tournament Mods, skip results, salty runback)
 	- NTSC-to-PAL conversion
+	- Lag Reduction (PD or PD/VB)
+	- Ruleset Mods (Vanilla or Frozen Stadium)
 
 ## Requirements/Instructions
 Slippi Nintendont supports booting Melee from USB/SD card.
