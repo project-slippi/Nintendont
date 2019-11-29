@@ -1391,7 +1391,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					break;
 				
 				case NIN_SLIPPI_SETTINGS_PAGE:
-					ctx->settings.page = !ctx->settings.page;
+					ctx->settings.page = 1;
 					ctx->settings.posX = 0;
 					ctx->redraw = 1;
 					break;
@@ -1432,7 +1432,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					break;
 				
 				case NIN_SLIPPI_SETTINGS_PAGE:
-					ctx->settings.page = !ctx->settings.page;
+					ctx->settings.page = 0;
 					ctx->settings.posX = 0;
 					ctx->redraw = 1;
 					break;
@@ -1774,6 +1774,16 @@ static int SelectGame(void)
 			ctx.redraw = 1;
 		}
 
+		if ( FPAD_X(0) ) {
+			if (ctx.settings.page == 0) {
+				ctx.settings.page = 1;
+			} else if (ctx.settings.page == 1) {
+				ctx.settings.page = 0;
+			}
+			ctx.settings.posX = 0;
+			ctx.settings.settingPart = 0;
+		}
+
 		bool ret = false;
 		if (ctx.menuMode == 0) {
 			// Game Select menu.
@@ -1799,15 +1809,19 @@ static int SelectGame(void)
 				PrintButtonActions("Go Back", NULL, "Settings", NULL);
 				// If the selected game bootable, enable "Select".
 				u32 color = ((ctx.games.canBeBooted) ? BLACK : DARK_GRAY);
-				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 430, MENU_POS_Y + 20*1, "A   : Select");
+				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 410, MENU_POS_Y + 20*1, "A   : Select");
 				// If the selected game is not DISC01, enable "Game Info".
 				color = ((ctx.games.canShowInfo) ? BLACK : DARK_GRAY);
-				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 430, MENU_POS_Y + 20*3, "X/1 : Game Info");
+				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 410, MENU_POS_Y + 20*3, "X : Game Info");
 			}
 			else
 			{
 				// Settings menu.
-				PrintButtonActions("Go Back", "Select", "Settings", NULL);
+				if (ctx.settings.page == 0) {
+					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
+				} else if (ctx.settings.page == 1) {
+					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
+				}
 			}
 
 			if (ctx.menuMode == 0 ||
@@ -1982,21 +1996,21 @@ void PrintInfo(void)
  * @param btn_home	[in,opt] Home button action.
  * @param btn_a		[in,opt] A button action.
  * @param btn_b		[in,opt] B button action.
- * @param btn_x1	[in,opt] X/1 button action.
+ * @param btn_x1	[in,opt] X button action.
  */
 void PrintButtonActions(const char *btn_home, const char *btn_a, const char *btn_b, const char *btn_x1)
 {
 	if (btn_home) {
-		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 430, MENU_POS_Y + 20*0, "Home: %s", btn_home);
+		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 410, MENU_POS_Y + 20*0, "Home: %s", btn_home);
 	}
 	if (btn_a) {
-		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 430, MENU_POS_Y + 20*1, "A   : %s", btn_a);
+		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 410, MENU_POS_Y + 20*1, "A   : %s", btn_a);
 	}
 	if (btn_b) {
-		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 430, MENU_POS_Y + 20*2, "B   : %s", btn_b);
+		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 410, MENU_POS_Y + 20*2, "B   : %s", btn_b);
 	}
 	if (btn_x1) {
-		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 430, MENU_POS_Y + 20*3, "X/1 : %s", btn_x1);
+		PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X + 410, MENU_POS_Y + 20*3, "X : %s", btn_x1);
 	}
 }
 
