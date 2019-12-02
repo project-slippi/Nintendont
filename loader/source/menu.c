@@ -1129,9 +1129,6 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 	//	ctx->redraw = 1;
 	//}
 
-	// Number of entries in the right settings column. Remember to change this
-	// when adding any toggleable settings to the right-hand part of the menu.
-
 	if (FPAD_Down_Repeat(ctx))
 	{
 		// Down: Move the cursor down by 1 setting.
@@ -1140,7 +1137,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		ctx->settings.posX++;
 		if (ctx->settings.page == 0)
 		{
-			if (ctx->settings.posX > NIN_SETTINGS_LAST - 1) { // might want to clean up the enum so we don't have to subtract 1
+			if (ctx->settings.posX > NIN_SETTINGS_LAST - 1) {
 				ctx->settings.posX = 0;
 			}
 			// Some items are hidden if certain values aren't set.
@@ -1164,15 +1161,16 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		if (ctx->settings.page == 1)
 		{
 			// Handle slippi page position
-			if (ctx->settings.posX > NIN_SLIPPI_SETTINGS_LAST)
+			if (ctx->settings.posX > NIN_SLIPPI_SETTINGS_LAST - 1)
 			{
 				ctx->settings.posX = 0;
-			}
-
-			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
+			} else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Settings 3 and 4 are skipped
 				ctx->settings.posX = 5;
+			} else if (ctx->settings.posX == NIN_SLIPPI_BLANK_3) {
+				// 10 is cursed
+				ctx->settings.posX = 11;
 			}
 		}
 
@@ -1208,7 +1206,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			// Handle slippi page positioning
 			if (ctx->settings.posX < 0)
 			{
-				ctx->settings.posX = NIN_SLIPPI_SETTINGS_LAST;
+				ctx->settings.posX = NIN_SLIPPI_SETTINGS_LAST - 1;
 			}
 
 			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
@@ -1412,29 +1410,27 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		{
 			// Slippi page settings
 			switch (ctx->settings.posX) {
-				case 0:
-					// Networking
+				case NIN_SLIPPI_NETWORKING:
 					ctx->saveSettings = true;
 					ncfg->Config ^= (NIN_CFG_NETWORK);
 					ctx->redraw = true;
 					break;
-				case 1:
-					// Slippi USB
+				case NIN_SLIPPI_FILE_WRITE:
 					ctx->saveSettings = true;
 					ncfg->Config ^= (NIN_CFG_SLIPPI_FILE_WRITE);
 					ctx->redraw = true;
 					break;
-				case 2:
-					// Use Slippi on Port A
+				case NIN_SLIPPI_PORT_A:
 					ctx->saveSettings = true;
 					ncfg->Config ^= (NIN_CFG_SLIPPI_PORT_A);
 					ctx->redraw = true;
 					break;
 				
-				case NIN_SLIPPI_SETTINGS_PAGE:
+				case NIN_SETTINGS_PAGE:
+					ctx->saveSettings = true;
 					ctx->settings.page = 0;
 					ctx->settings.posX = 0;
-					ctx->redraw = 1;
+					ctx->redraw = true;
 					break;
 
 				default: ; // need semicolon to declare variable on next line
@@ -1592,10 +1588,9 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					"%-18s:%-4s", "Screen Position", vidOffset);
 			ListLoopIndex++;
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-					"Slippi Settings");
+					"Slippi Settings \xE2\x96\xB6");
+			ListLoopIndex++;
 		} else {
-			ListLoopIndex = 0; //reset on other side
-
 			// Networking
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
 					"%-18s:%-4s", "Slippi Networking", (ncfg->Config & (NIN_CFG_NETWORK)) ? "Yes" : "No ");
@@ -1625,8 +1620,10 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 							"%-15s:%s", item->name, option->name);
 					ListLoopIndex++;
 			}
+			ListLoopIndex++;
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-					"Regular Settings");
+					"Regular Settings \xE2\x96\xB6");
+			ListLoopIndex++;
 		}
 
 		// Draw the cursor.
@@ -1782,6 +1779,7 @@ static int SelectGame(void)
 			}
 			ctx.settings.posX = 0;
 			ctx.settings.settingPart = 0;
+			ctx.redraw = true;
 		}
 
 		bool ret = false;
@@ -1820,7 +1818,9 @@ static int SelectGame(void)
 				if (ctx.settings.page == 0) {
 					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
 				} else if (ctx.settings.page == 1) {
-					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
+					char s[2];
+					snprintf(s, sizeof(s), "%i", ctx.settings.posX);
+					PrintButtonActions(s, "Select", "Settings", "Regular Settings");
 				}
 			}
 
