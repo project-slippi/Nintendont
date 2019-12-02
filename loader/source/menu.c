@@ -1164,13 +1164,11 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			if (ctx->settings.posX > NIN_SLIPPI_SETTINGS_LAST - 1)
 			{
 				ctx->settings.posX = 0;
-			} else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
+			} 
+			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Settings 3 and 4 are skipped
 				ctx->settings.posX = 5;
-			} else if (ctx->settings.posX == NIN_SLIPPI_BLANK_3) {
-				// 10 is cursed
-				ctx->settings.posX = 11;
 			}
 		}
 
@@ -1587,7 +1585,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
 					"%-18s:%-4s", "Screen Position", vidOffset);
 			ListLoopIndex++;
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+			PrintFormat(MENU_SIZE, GREEN, MENU_POS_X + 50, SettingY(ListLoopIndex),
 					"Slippi Settings \xE2\x96\xB6");
 			ListLoopIndex++;
 		} else {
@@ -1620,8 +1618,8 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 							"%-15s:%s", item->name, option->name);
 					ListLoopIndex++;
 			}
-			ListLoopIndex++;
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+			
+			PrintFormat(MENU_SIZE, RED, MENU_POS_X + 50, SettingY(ListLoopIndex),
 					"Regular Settings \xE2\x96\xB6");
 			ListLoopIndex++;
 		}
@@ -1818,9 +1816,7 @@ static int SelectGame(void)
 				if (ctx.settings.page == 0) {
 					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
 				} else if (ctx.settings.page == 1) {
-					char s[2];
-					snprintf(s, sizeof(s), "%i", ctx.settings.posX);
-					PrintButtonActions(s, "Select", "Settings", "Regular Settings");
+					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
 				}
 			}
 
