@@ -56,14 +56,11 @@ const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
 };
 
 static const char *cfDescription[] = {
-	"The type of controller fix",
-	"to apply",
+	"The type of controller fix to apply",
 	"",
 	"1. UCF will enable UCF 0.74",
-	"2. Stealth will enable UCF",
-	"without the CSS text",
-	"3. Toggle will allow option",
-	"selection on CSS",
+	"2. Stealth will enable UCF without the CSS text",
+	"3. Toggle will allow option selection on CSS",
 	NULL
 };
 
@@ -99,13 +96,10 @@ const MeleeCodeOption *versionOptions[MELEE_CODES_VERSION_OPTION_COUNT] = {
 };
 
 static const char *versionDescription[] = {
-	"When enabled, applies a",
-	"patch which converts a 1.02",
-	"ISO to include all PAL",
-	"changes"
+	"Applies a patch which applies all PAL changes",
+	"to a NTSC 1.02 ISO",
 	"",
-	"You MUST use an NTSC 1.02",
-	"ISO for Slippi to work",
+	"You MUST use an NTSC 1.02 ISO for Slippi to work",
 	NULL
 };
 
@@ -159,13 +153,10 @@ const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
 static const char *modsDescription[] = {
 	"Game mods to apply",
 	"",
-	"[Stealth] Neutral Spawns",
-	"Hide tags when invisible",
-	"Preserve tag in rotation",
-	"[Tournament] D-Pad Rumble",
-	"Stage Striking",
-	"[Friendlies] Skip Results",
-	"Salty Runback (A+B)",
+	"[Stealth] Neutral Spawns, Hide tags when invisible,",
+	" Preserve tag in rotation",
+	"[Tournament] D-Pad Rumble, Stage Striking",
+	"[Friendlies] Skip Results, Salty Runback (A+B)",
 	NULL
 };
 
@@ -211,12 +202,11 @@ const MeleeCodeOption *lagReductionOptions[MELEE_CODES_LAG_REDUCTION_OPTION_COUN
 static const char *lagReductionDescription[] = {
 	"Lag reduction codes",
 	"",
-	"1. PD is polling drift fix",
-	"it will make sure inputs",
-	"are polled consistently.",
+	"1. PD is polling drift fix it will make sure",
+	"inputs are polled consistently.",
 	"Average 4.17ms reduction",
-	"2. PD+VB additionally",
-	"removes one frame of lag.",
+	"",
+	"2. PD+VB additionally removes one frame of lag.",
 	"Average 20.83ms reduction",
 	NULL,
 };
@@ -253,12 +243,10 @@ const MeleeCodeOption *rulesetOptions[MELEE_CODES_RULESET_OPTION_COUNT] = {
 };
 
 static const char *rulesetDescription[] = {
-	"Codes that change the",
-	"rules of the game.",
+	"Codes that change the rules of the game.",
 	"",
-	"Frz Pkm will freeze stadium",
-	"such that replays/mirroring",
-	"will continue to work.",
+	"Frz Pkm will freeze stadium such that",
+	"replays/mirroring will continue to work.",
 	NULL
 };
 

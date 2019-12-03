@@ -1067,9 +1067,8 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 				// Networking
 				static const char *desc_networking[] = {
 					"Enable Slippi networking.",
-					"Wii network settings must",
-					"be configured in order to",
-					"use this feature.",
+					"Wii network settings must be configured",
+					"in order to use this feature.",
 					NULL
 				};
 				return desc_networking;
@@ -1077,10 +1076,8 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 			case NIN_SLIPPI_FILE_WRITE: {
 				// Slippi File Write
 				static const char *desc_slippi_file_write[] = {
-					"Write Slippi replays to",
-					"secondary storage device.",
-					"Requires both a USB and",
-					"SD device plugged in.",
+					"Write Slippi replays to secondary storage device.",
+					"Requires both a USB and SD device plugged in.",
 					NULL
 				};
 				return desc_slippi_file_write;
@@ -1651,7 +1648,14 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			do {
 				if (**desc != 0)
 				{
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 300, SettingY(line_num), *desc);
+					if (ctx->settings.page == 0)
+					{
+						PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 300, SettingY(line_num), *desc);
+					}
+					else if (ctx->settings.page == 1)
+					{
+						PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(line_num), *desc);
+					}
 				}
 				line_num++;
 			} while (*(++desc) != NULL);
@@ -1815,12 +1819,11 @@ static int SelectGame(void)
 			else
 			{
 				// Settings menu.
-				PrintButtonActions("Go Back", "Select", "Settings", "Change Settings");
-				// if (ctx.settings.page == 0) {
-				// 	PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
-				// } else if (ctx.settings.page == 1) {
-				// 	PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
-				// }
+				if (ctx.settings.page == 0) {
+					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
+				} else if (ctx.settings.page == 1) {
+					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
+				}
 			}
 
 			if (ctx.menuMode == 0 ||
