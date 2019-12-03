@@ -1063,7 +1063,7 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 		switch (ctx->settings.posX)
 		{
 
-			case 0: {
+			case NIN_SLIPPI_NETWORKING: {
 				// Networking
 				static const char *desc_networking[] = {
 					"Enable Slippi networking.",
@@ -1074,7 +1074,7 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 				};
 				return desc_networking;
 			}
-			case 1: {
+			case NIN_SLIPPI_FILE_WRITE: {
 				// Slippi File Write
 				static const char *desc_slippi_file_write[] = {
 					"Write Slippi replays to",
@@ -1085,7 +1085,7 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 				};
 				return desc_slippi_file_write;
 			}
-			case 2: {
+			case NIN_SLIPPI_PORT_A: {
 				// Slippi on Port A
 				static const char *desc_slippi_port_a[] = {
 					"When enabled, emulate Slippi",
@@ -1094,6 +1094,10 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 					NULL
 				};
 				return desc_slippi_port_a;
+			}
+
+			case NIN_SETTINGS_PAGE: {
+				return NULL;
 			}
 
 			default: ; // Need semicolon here to declare variable on next line
@@ -1128,6 +1132,17 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 	//	UpdateNintendont();
 	//	ctx->redraw = 1;
 	//}
+
+	if ( FPAD_X(0) ) {
+		if (ctx->settings.page == 0) {
+			ctx->settings.page = 1;
+		} else if (ctx->settings.page == 1) {
+			ctx->settings.page = 0;
+		}
+		ctx->settings.posX = 0;
+		ctx->settings.settingPart = 0;
+		ctx->redraw = true;
+	}
 
 	if (FPAD_Down_Repeat(ctx))
 	{
@@ -1214,7 +1229,6 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 			}
 
 		}
-
 		ctx->redraw = true;
 	}
 
@@ -1425,7 +1439,6 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					break;
 				
 				case NIN_SETTINGS_PAGE:
-					ctx->saveSettings = true;
 					ctx->settings.page = 0;
 					ctx->settings.posX = 0;
 					ctx->redraw = true;
@@ -1604,7 +1617,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 					"%-18s:%-4s", "Slippi on Port A", (ncfg->Config & (NIN_CFG_SLIPPI_PORT_A)) ? "Yes" : "No ");
 			ListLoopIndex += 2;
 
-			PrintFormat(14, GREEN, MENU_POS_X + 50, SettingY(ListLoopIndex), "MELEE CODES");
+			PrintFormat(14, DARK_BLUE, MENU_POS_X + 50, SettingY(ListLoopIndex), "MELEE CODES");
 			ListLoopIndex++;
 
 			const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
@@ -1634,7 +1647,7 @@ static bool UpdateSettingsMenu(MenuCtx *ctx)
 		const char *const *desc = GetSettingsDescription(ctx);
 		if (desc != NULL)
 		{
-			int line_num = 11;
+			int line_num = 12;
 			do {
 				if (**desc != 0)
 				{
@@ -1769,17 +1782,6 @@ static int SelectGame(void)
 			ctx.redraw = 1;
 		}
 
-		if ( FPAD_X(0) ) {
-			if (ctx.settings.page == 0) {
-				ctx.settings.page = 1;
-			} else if (ctx.settings.page == 1) {
-				ctx.settings.page = 0;
-			}
-			ctx.settings.posX = 0;
-			ctx.settings.settingPart = 0;
-			ctx.redraw = true;
-		}
-
 		bool ret = false;
 		if (ctx.menuMode == 0) {
 			// Game Select menu.
@@ -1813,11 +1815,12 @@ static int SelectGame(void)
 			else
 			{
 				// Settings menu.
-				if (ctx.settings.page == 0) {
-					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
-				} else if (ctx.settings.page == 1) {
-					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
-				}
+				PrintButtonActions("Go Back", "Select", "Settings", "Change Settings");
+				// if (ctx.settings.page == 0) {
+				// 	PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
+				// } else if (ctx.settings.page == 1) {
+				// 	PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
+				// }
 			}
 
 			if (ctx.menuMode == 0 ||
