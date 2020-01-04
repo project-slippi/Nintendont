@@ -553,6 +553,73 @@ static u32 CheckForMultiGameAndRegion(unsigned int CurDICMD, u32 *ISOShift, u32 
 	return 0;
 }
 
+/* PrepareSlippiNickname()
+ * Verify that we're passing a console nickname to the kernel, used to write
+ * replay file metadata later on. This function must be called AFTER trying to
+ * load the configuration with LoadSlippiDat().
+ *
+ * If the first byte in the Slippi configuration nickname is NUL, assume that
+ * it has not been set, and fall back to using the System Menu nickname.
+ *
+ * Returns true if we've successfully passed a user-configured nickname.
+ * Otherwise, return false if the nickname is empty.
+ */
+static bool PrepareSlippiNickname(void)
+{
+	// If the first byte isn't NUL, assume that the nickname was actually
+	// configured by slippi-wiiconf (we don't need to do anything else)
+	if (slippi_settings->nickname[0] != 0x00) return true;
+
+	u16 ipl_nik[11];
+	WCHAR ios_nick[10];
+	const char *utf8_nick;
+
+	// Try to get the nickname entry from SYSCONF
+	int res = CONF_Get("IPL.NIK", ipl_nik, 0x16);
+
+	// Something went wrong reading SYSCONF
+	if (res != 0x16) return false;
+
+	// FIXME: Is it possible to have a nickname of size zero?
+	// How do we deal with this?
+	//
+	// The size of the System Menu nickname is zero or out-of-bounds.
+	if ((ipl_nik[10] > 10) || (ipl_nik[10] == 0)) return false;
+
+	// Write back to slippi_settings
+	memcpy(ios_nick, ipl_nik, ipl_nik[10]*2);
+	utf8_nick = wchar_to_char(ios_nick);
+	memcpy(slippi_settings->nickname, utf8_nick, strnlen(utf8_nick, 31));
+
+	return true;
+}
+
+
+/* PrepareSlippiRTC()
+ * Prepare the RTC so we can correctly timestamp replay files when we're
+ * recording offline. Use the Slippi bias if it's non-zero. Otherwise, just
+ * fallback to the SYSCONF bias stored on NAND flash.
+ */
+static u32 PrepareSlippiRTC(void)
+{
+	u32 bias = 0;
+	u32 rtc = 0;
+	__SYS_GetRTC(&rtc);
+
+	if (slippi_settings->rtc_bias > 0)
+	{
+		rtc += slippi_settings->rtc_bias;
+	}
+	else
+	{
+		if(CONF_GetCounterBias(&bias) >= 0)
+			rtc += bias;
+	}
+
+	return rtc;
+}
+
+
 static char dev_es[] ATTRIBUTE_ALIGN(32) = "/dev/es";
 
 extern vu32 FoundVersion;
@@ -561,7 +628,7 @@ int main(int argc, char **argv)
 {
 	// Exit after 10 seconds if there is an error
 	__exception_setreload(10);
-//	u64 timeout = 0;
+	// u64 timeout = 0;
 	CheckForGecko();
 	DCInvalidateRange(loader_stub, 0x1800);
 	memcpy(loader_stub, (void*)0x80001800, 0x1800);
@@ -806,13 +873,17 @@ int main(int argc, char **argv)
 			ncfg->MemCardBlocks = 0x2;//251 blocks
 		}
 
-		/* Load configuration file from slippi-wiiconf.
-		 * If we can't load the file, set some sane defaults.
-		 */
-
+		// Try to load a Slippi configuration file
 		if (LoadSlippiDat() == false)
 		{
 			memset(slippi_settings, 0, sizeof(struct slippi_settings));
+		}
+
+		// Verify that we pass a proper console nickname to the kernel
+		// after we've tried to load the Slippi configuration.
+		bool got_nick = PrepareSlippiNickname();
+		if (!got_nick)
+		{
 			memcpy(slippi_settings->nickname, DEFAULT_NICKNAME, 32);
 		}
 
@@ -1209,30 +1280,18 @@ int main(int argc, char **argv)
 		ncfg->Config &= ~NIN_CFG_FORCE_PROG;
 	}
 
-	//make sure the cfg gets to the kernel
+	// Make sure we write-back configuration data to main memory
 	DCStoreRange((void*)ncfg, sizeof(NIN_CFG));
 	DCStoreRange((void*)slippi_settings, sizeof(struct slippi_settings));
 
-	/* Set the current time. Try to get the RTC bias from slippi-wiiconf
-	 * first. Otherwise, just use the one from the Wii's SYSCONF file.
-	 */
-
-	u32 bias = 0, cur_time = 0;
-	__SYS_GetRTC(&cur_time);
-
-	if (slippi_settings->rtc_bias > 0)
-		cur_time += slippi_settings->rtc_bias;
-	else
-	{
-		if(CONF_GetCounterBias(&bias) >= 0)
-			cur_time += bias;
-	}
+	// Let the Slippi configuration adjust the RTC if necessary
+	u32 cur_time = PrepareSlippiRTC();
 	settime(secs_to_ticks(cur_time));
 
 	//hand over approx time passed since 1970
 	*(vu32*)0xD3003424 = (cur_time+946684800);
 
-//set status for kernel to start running
+	//set status for kernel to start running
 	*(vu32*)0xD3003420 = 0x0DEA;
 	while(1)
 	{
