@@ -10,6 +10,9 @@ endif
 
 include $(DEVKITPPC)/wii_rules
 
+# Grab some info from git to make versioning somewhat easier.
+GIT_VERSION := "$(shell git describe --dirty --always --tags)"
+
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
 # BUILD is the directory where object files & intermediate files will be placed
@@ -30,7 +33,9 @@ INCLUDES	:= include ../fatfs
 
 ASFLAGS := $(MACHDEP) -mregnames -D_LANGUAGE_ASSEMBLY
 CFLAGS	:= -O3 -g -std=gnu89 -Wno-format-truncation \
-	   -Wall $(MACHDEP) $(INCLUDE) -DDEBUG -DDEBUG_MODULE_PATCH -DARCH_IS_BIG_ENDIAN
+	   -Wall $(MACHDEP) $(INCLUDE) \
+	   -DNIN_GIT_VERSION=\"$(GIT_VERSION)\" \
+	   -DDEBUG -DDEBUG_MODULE_PATCH -DARCH_IS_BIG_ENDIAN
 CXXFLAGS := $(CFLAGS)
 
 # NOTE: Do NOT change to := - needed for proper expansion of $(CURDIR) later.

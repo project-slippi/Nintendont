@@ -777,13 +777,6 @@ static bool UpdateGameSelectMenu(MenuCtx *ctx)
 		// Redraw the game list.
 		// TODO: Only if menuMode or scrollX has changed?
 
-		// Print the color codes.
-		PrintFormat(DEFAULT_SIZE, DiscFormatColors[0], MENU_POS_X, MENU_POS_Y + 20*3, "Colors  : 1:1");
-		PrintFormat(DEFAULT_SIZE, DiscFormatColors[1], MENU_POS_X+(14*10), MENU_POS_Y + 20*3, "Shrunk");
-		PrintFormat(DEFAULT_SIZE, DiscFormatColors[2], MENU_POS_X+(21*10), MENU_POS_Y + 20*3, "FST");
-		PrintFormat(DEFAULT_SIZE, DiscFormatColors[3], MENU_POS_X+(25*10), MENU_POS_Y + 20*3, "CISO");
-		PrintFormat(DEFAULT_SIZE, DiscFormatColors[4], MENU_POS_X+(30*10), MENU_POS_Y + 20*3, "Multi");
-
 		// Starting position.
 		int gamelist_y = MENU_POS_Y + 20*5 + 10;
 
@@ -1975,18 +1968,11 @@ void ShowMessageScreenAndExit(const char *msg, int ret)
  */
 void PrintInfo(void)
 {
-	const char *consoleType = (isWiiVC ? (IsWiiUFastCPU() ? "WiiVC 5x CPU" : "Wii VC") : (IsWiiUFastCPU() ? "WiiU 5x CPU" : (IsWiiU() ? "Wii U" : "Wii")));
-#ifdef NIN_SPECIAL_VERSION
-	// "Special" version with customizations. (Not mainline!)
-	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*0, "Nintendont" NIN_SPECIAL_VERSION " v%u.%u (%s)",
-		    NIN_VERSION>>16, NIN_VERSION&0xFFFF, consoleType);
-#else
-	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*0, "Nintendont v%u.%u (%s)",
-		    NIN_VERSION>>16, NIN_VERSION&0xFFFF, consoleType);
-#endif
-	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*1, "Built   : " __DATE__ " " __TIME__);
-	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*2, "Firmware: %u.%u.%u",
-		    *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143);
+	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*0,
+		"[%s][IOS%u v%u]", 
+		NIN_GIT_VERSION, *(vu16*)0x80003140, *(vu16*)0x80003142);
+	PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*1,
+		"Built   : " __DATE__ " " __TIME__);
 }
 
 /**

@@ -2,7 +2,6 @@
 #ifndef __COMMON_CONFIG_H__
 #define __COMMON_CONFIG_H__
 
-#include "NintendontVersion.h"
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
@@ -32,10 +31,10 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_CHEATS		= (0),
 	NIN_CFG_BIT_DEBUGGER	= (1),	// Only for Wii Version
 	NIN_CFG_BIT_DEBUGWAIT	= (2),	// Only for Wii Version
-	NIN_CFG_BIT_MEMCARDEMU	= (3),
+	NIN_CFG_BIT_MEMCARDEMU	= (3), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_FORCE_WIDE	= (4),
 	NIN_CFG_BIT_FORCE_PROG	= (5),
-	NIN_CFG_BIT_REMLIMIT	= (6),	// New Versions
+	NIN_CFG_BIT_REMLIMIT	= (6), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_OSREPORT	= (7),
 	NIN_CFG_BIT_LOG			= (8),
 	NIN_CFG_BIT_LED			= (9),
@@ -43,7 +42,7 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_LAST		= (11),
 
 	NIN_CFG_BIT_MC_MULTI	= (11),
-	NIN_CFG_BIT_SKIP_IPL	= (12),
+	NIN_CFG_BIT_SKIP_IPL	= (12), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_NETWORK		= (13),
 	NIN_CFG_BIT_SLIPPI_FILE_WRITE	= (14),
 	NIN_CFG_BIT_SLIPPI_PORT_A = (15),

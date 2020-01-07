@@ -43,7 +43,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "multidol_ldr_bin.h"
 #include "stub_bin.h"
 #include "titles.h"
-#include "ipl.h"
 #include "HID.h"
 #include "TRI.h"
 #include "Config.h"
@@ -125,91 +124,10 @@ extern void __exception_closeall();
 static u8 loader_stub[0x1800]; //save internally to prevent overwriting
 static ioctlv IOCTL_Buf ALIGNED(32);
 static const char ARGSBOOT_STR[9] ALIGNED(0x10) = {'a','r','g','s','b','o','o','t','\0'}; //makes it easier to go through the file
-static const char NIN_BUILD_STRING[] ALIGNED(32) = NIN_VERSION_STRING; // Version detection string used by nintendont launchers "$$Version:x.xxx"
 static const char DEFAULT_NICKNAME[32] ALIGNED(32) = "SlippiConsole\x00";
 
 bool isWiiVC = false;
 bool wiiVCInternal = false;
-
-/**
- * Update meta.xml.
- */
-static void updateMetaXml(void)
-{
-	char filepath[MAXPATHLEN];
-	bool dir_argument_exists = strlen(launch_dir);
-
-	snprintf(filepath, sizeof(filepath), "%smeta.xml",
-		dir_argument_exists ? launch_dir : "/apps/Nintendont Slippi/");
-
-	if (!dir_argument_exists) {
-		gprintf("Creating new directory\r\n");
-		f_mkdir_char("/apps");
-		f_mkdir_char("/apps/Nintendont Slippi");
-	}
-
-	char new_meta[1024];
-	int len = snprintf(new_meta, sizeof(new_meta),
-		META_XML "\r\n<app version=\"1\">\r\n"
-		"\t<name>" META_NAME "</name>\r\n"
-		"\t<coder>" META_AUTHOR "</coder>\r\n"
-		"\t<version>%d.%d%s</version>\r\n"
-		"\t<release_date>20160710000000</release_date>\r\n"
-		"\t<short_description>" META_SHORT "</short_description>\r\n"
-		"\t<long_description>" META_LONG1 "\r\n\r\n" META_LONG2 "</long_description>\r\n"
-		"\t<no_ios_reload/>\r\n"
-		"\t<ahb_access/>\r\n"
-		"</app>\r\n",
-		NIN_VERSION >> 16, NIN_VERSION & 0xFFFF,
-#ifdef NIN_SPECIAL_VERSION
-		NIN_SPECIAL_VERSION
-#else
-		""
-#endif
-  			);
-	if (len > sizeof(new_meta))
-		len = sizeof(new_meta);
-
-	// Check if the file already exists.
-	FIL meta;
-	if (f_open_char(&meta, filepath, FA_READ|FA_OPEN_EXISTING) == FR_OK)
-	{
-		// File exists. If it's the same as the new meta.xml,
-		// don't bother rewriting it.
-		char orig_meta[1024];
-		if (len == meta.obj.objsize)
-		{
-			// File is the same length.
-			UINT read;
-			f_read(&meta, orig_meta, len, &read);
-			if (read == (UINT)len &&
-			    !strncmp(orig_meta, new_meta, len))
-			{
-				// File is identical.
-				// Don't rewrite it.
-				f_close(&meta);
-				return;
-			}
-		}
-		f_close(&meta);
-	}
-
-	// File does not exist, or file is not identical.
-	// Write the new meta.xml.
-	if (f_open_char(&meta, filepath, FA_WRITE|FA_CREATE_ALWAYS) == FR_OK)
-	{
-		// Reserve space in the file.
-		if (f_size(&meta) < len) {
-			f_expand(&meta, len, 1);
-		}
-
-		// Write the new meta.xml.
-		UINT wrote;
-		f_write(&meta, new_meta, len, &wrote);
-		f_close(&meta);
-		FlushDevices();
-	}
-}
 
 static const WCHAR *primaryDevice;
 void changeToDefaultDrive()
@@ -795,7 +713,7 @@ int main(int argc, char **argv)
 	//Async Ioctlv done by now
 	IOS_Close(fd);
 
-	gprintf("Nintendont at your service!\r\n%s\r\n", NIN_BUILD_STRING);
+	gprintf("Nintendont at your service!\r\n%s\r\n", NIN_GIT_VERSION);
 	KernelLoaded = 1;
 
 	// Checking for storage devices...
@@ -853,9 +771,6 @@ int main(int argc, char **argv)
 	DCInvalidateRange( (void*)0x93100000, 0x50000 );
 	free(fontbuffer);
 	//gprintf("Font: 0x1AFF00 starts with %.4s, 0x1FCF00 with %.4s\n", (char*)0x93100000, (char*)0x93100000 + 0x4D000);
-
-	// Update meta.xml.
-	updateMetaXml();
 
 	if(argsboot == false)
 	{
@@ -1210,51 +1125,6 @@ int main(int argc, char **argv)
 		while(!__SYS_SyncSram());
 	}
 
-	#define GCN_IPL_SIZE 2097152
-	#define TRI_IPL_SIZE 1048576
-	void *iplbuf = NULL;
-	bool useipl = false;
-	bool useipltri = false;
-
-	if (!(ncfg->Config & (NIN_CFG_SKIP_IPL)))
-	{
-		// Attempt to load the GameCube IPL.
-		char iplchar[32];
-		iplchar[0] = 0;
-		switch (BI2region)
-		{
-			case BI2_REGION_USA:
-				snprintf(iplchar, sizeof(iplchar), "%s:/iplusa.bin", GetRootDevice());
-				break;
-
-			case BI2_REGION_JAPAN:
-			case BI2_REGION_SOUTH_KOREA:
-			default:
-				snprintf(iplchar, sizeof(iplchar), "%s:/ipljap.bin", GetRootDevice());
-				break;
-
-			case BI2_REGION_PAL:
-				// FIXME: PAL IPL is broken on Wii U.
-				if (!IsWiiU())
-					snprintf(iplchar, sizeof(iplchar), "%s:/iplpal.bin", GetRootDevice());
-				break;
-		}
-
-		FIL f;
-		if (iplchar[0] != 0 &&
-		    f_open_char(&f, iplchar, FA_READ|FA_OPEN_EXISTING) == FR_OK)
-		{
-			if (f.obj.objsize == GCN_IPL_SIZE)
-			{
-				iplbuf = malloc(GCN_IPL_SIZE);
-				UINT read;
-				f_read(&f, iplbuf, GCN_IPL_SIZE, &read);
-				useipl = (read == GCN_IPL_SIZE);
-			}
-			f_close(&f);
-		}
-	}
-
 	//sync changes
 	CloseDevices();
 
@@ -1402,8 +1272,7 @@ int main(int argc, char **argv)
 	u32 vidForce = (ncfg->VideoMode & NIN_VID_FORCE);
 	u32 vidForceMode = (ncfg->VideoMode & NIN_VID_FORCE_MASK);
 
-	progressive = (ncfg->Config & NIN_CFG_FORCE_PROG)
-		&& !useipl && !useipltri;
+	progressive = (ncfg->Config & NIN_CFG_FORCE_PROG);
 
 	switch (BI2region)
 	{
@@ -1426,8 +1295,7 @@ int main(int argc, char **argv)
 
 		case BI2_REGION_USA:
 			if ((vidForce && vidForceMode == NIN_VID_FORCE_MPAL) ||
-			    (!vidForce && ((CONF_GetVideo() == CONF_VIDEO_MPAL) 
-					|| (useipl && memcmp(iplbuf+0x55,"MPAL",4) == 0))))
+			    (!vidForce && ((CONF_GetVideo() == CONF_VIDEO_MPAL))))
 			{
 				// PAL-M
 				*(vu32*)0x800000CC = 3;
@@ -1590,33 +1458,12 @@ int main(int argc, char **argv)
 	gprintf("Game Start\n");
 	//alow interrupts on Y2
 	write32(0x0d000004,0x22);
-	if(useipl)
-	{
-		load_ipl(iplbuf);
-		*(vu32*)0xD3003420 = 0x5DEA;
-		while(*(vu32*)0xD3003420 == 0x5DEA) ;
-		/* Patches */
-		DCInvalidateRange((void*)0x80001000, 0x2000);
-		ICInvalidateRange((void*)0x80001000, 0x2000);
-		/* IPL */
-		DCInvalidateRange((void*)0x81300000, 0x300000);
-		ICInvalidateRange((void*)0x81300000, 0x300000);
-		/* Seems to boot more stable this way */
-		//gprintf("Using 32kHz DSP (No Resample)\n");
-		write32(0xCD806C00, 0x68);
-		free(iplbuf);
-	}
-	else //use our own loader
-	{
-		if(useipltri)
-		{
-			*(vu32*)0xD3003420 = 0x6DEA;
-			while(*(vu32*)0xD3003420 == 0x6DEA) ;
-		}
-		memcpy((void*)0x81300000, multidol_ldr_bin, multidol_ldr_bin_size);
-		DCFlushRange((void*)0x81300000, multidol_ldr_bin_size);
-		ICInvalidateRange((void*)0x81300000, multidol_ldr_bin_size);
-	}
+
+	// Only use the Nintendont-provided loader (do not support IPL)
+	memcpy((void*)0x81300000, multidol_ldr_bin, multidol_ldr_bin_size);
+	DCFlushRange((void*)0x81300000, multidol_ldr_bin_size);
+	ICInvalidateRange((void*)0x81300000, multidol_ldr_bin_size);
+
 	_jmp813();
 
 	//IRQ_Restore(level);
