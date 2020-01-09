@@ -171,6 +171,8 @@ bool FPAD_Up( bool ILock )
 	return false;
 }
 
+
+
 bool FPAD_Down( bool ILock )
 {
 	if( !ILock && SLock ) return false;
@@ -273,13 +275,3 @@ bool FPAD_Start( bool ILock )
 	return false;
 }
 
-inline void Screenshot(void) {
-	if ((WPAD_Pressed == (WPAD_BUTTON_PLUS|WPAD_BUTTON_MINUS)) || (WiiDRC_Pressed == (WIIDRC_BUTTON_PLUS|WIIDRC_BUTTON_MINUS))) {
-		#ifdef SCREENSHOT
-		gprintf("Screenshot %s\r\n", GRRLIB_ScrShot("Screenshot.png") ? "taken" : "failed");
-		#else
-		gprintf("Screenshot function disabled\r\n");
-		usleep(200000);
-		#endif
-	}
-}

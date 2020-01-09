@@ -131,7 +131,7 @@ static inline int FPAD_##Key##_Repeat(MenuCtx *ctx) \
  * Select the source device and game.
  * @return TRUE to save settings; FALSE if no settings have been changed.
  */
-bool SelectDevAndGame(void);
+bool Menu_DeviceSelection(void);
 
 /**
  * Show a single message screen.
@@ -155,11 +155,11 @@ static inline void ShowLoadingScreen(void)
 /**
  * Print Nintendont version and system hardware information.
  */
-void PrintInfo(void);
+void PrintBuildInfo(void);
 
 /**
  * Print button actions.
- * Call this function after PrintInfo().
+ * Call this function after PrintBuildInfo().
  *
  * If any button action is NULL, that button won't be displayed.
  *

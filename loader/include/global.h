@@ -178,7 +178,6 @@ void CloseDevices();
 void hexdump(void *d, int len);
 void DrawBuffer(void);
 void UpdateScreen(void);
-void Screenshot(void);
 raw_irq_handler_t BeforeIOSReload();
 void AfterIOSReload(raw_irq_handler_t handle, u32 rev);
 

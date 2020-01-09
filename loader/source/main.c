@@ -381,7 +381,7 @@ static u32 CheckForMultiGameAndRegion(unsigned int CurDICMD, u32 *ISOShift, u32 
 
 		if( redraw )
 		{
-			PrintInfo();
+			PrintBuildInfo();
 			PrintButtonActions(NULL, "Select", NULL, NULL);
 			static const int subheader_x = (640 - (40*10)) / 2;
 			PrintFormat(DEFAULT_SIZE, BLACK, subheader_x, MENU_POS_Y + 20*3,
@@ -393,7 +393,6 @@ static u32 CheckForMultiGameAndRegion(unsigned int CurDICMD, u32 *ISOShift, u32 
 					    gi[i].Name, gi[i].ID, i == PosX ? ARROW_LEFT : " " );
 			}
 			GRRLIB_Render();
-			Screenshot();
 			ClearScreen();
 			redraw = false;
 		}
@@ -733,7 +732,7 @@ int main(int argc, char **argv)
 		{
 			if (i == 0)
 			{
-				PrintInfo();
+				PrintBuildInfo();
 				PrintFormat(DEFAULT_SIZE, BLACK, 320 - 90, 
 					MENU_POS_Y + 20*10, "B: Cancel Autoboot");
 				GRRLIB_Render();
@@ -765,13 +764,13 @@ int main(int argc, char **argv)
 	bool SaveSettings = false;
 	if(!(ncfg->Config & NIN_CFG_AUTO_BOOT))
 	{
-		SaveSettings = SelectDevAndGame();
+		SaveSettings = Menu_DeviceSelection();
 	}
 	// Otherwise, autoboot
 	else
 	{
 		gprintf("Autobooting:\"%s\"\r\n", ncfg->GamePath );
-		PrintInfo();
+		PrintBuildInfo();
 		GRRLIB_Render();
 		ClearScreen();
 	}
@@ -865,7 +864,7 @@ int main(int argc, char **argv)
 	int ret = CheckForMultiGameAndRegion(CurDICMD, &ISOShift, &BI2region);
 	if (ret != 0) {
 		ClearScreen();
-		PrintInfo();
+		PrintBuildInfo();
 		PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*4, "CheckForMultiGameAndRegion() failed: %d", ret);
 		switch (ret) {
 			case 1:
@@ -1056,7 +1055,7 @@ int main(int argc, char **argv)
 
 		if(argsboot == false)
 		{
-			PrintInfo();
+			PrintBuildInfo();
 
 			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*6, "Loading patched kernel... %d", STATUS_LOADING);
 			if(STATUS_LOADING == ES_INIT)
