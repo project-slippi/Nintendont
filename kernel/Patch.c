@@ -1673,20 +1673,10 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 
 	if(ConfigGetConfig(NIN_CFG_CHEATS))
 		cheatsWanted = 1;
-	if(!IsWiiU() && ConfigGetConfig(NIN_CFG_DEBUGGER))
+	if(ConfigGetConfig(NIN_CFG_DEBUGGER))
 		debuggerWanted = 1;
 	if(cheatsWanted || debuggerWanted || MeleeVersion)
 		PatchCount &= ~FPATCH_OSSleepThread;
-	/* So this can be used but for now we just use PADRead */
-	/*if( (IsWiiU() && ConfigGetConfig(NIN_CFG_CHEATS)) ||
-		(!IsWiiU() && ConfigGetConfig(NIN_CFG_DEBUGGER|NIN_CFG_CHEATS)) )
-	{
-		PatchCount &= ~(
-			FPATCH_OSSleepThread | //Hook 1
-			//FPATCH_GXBegin //Hook 2, unstable!
-			FPATCH_GXDrawDone //Hook 3
-		);
-	}*/
 #endif
 	u32 videoPatches = 0;
 	if( ConfigGetConfig(NIN_CFG_FORCE_PROG) || (ConfigGetVideoMode() & NIN_VID_FORCE) ||
@@ -2823,14 +2813,6 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 								break;
 							}
 
-							if( IsWiiU() )
-							{
-								if( CurPatterns[j].Patch == patch_fwrite_GC ) // patch_fwrite_Log works fine
-								{
-									dbgprintf("Patch:[patch_fwrite_GC] skipped (0x%08X)\r\n", FOffset);
-									break;
-								}
-							}
 							printpatchfound(CurPatterns[j].Name, CurPatterns[j].Type, FOffset);
 							memcpy((void*)FOffset, patch_fwrite_Log, sizeof(patch_fwrite_Log));
 							if (CurPatterns[j].PatchLength == FCODE___fwrite_D)
@@ -3300,19 +3282,10 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 
 			// Debug Wait setting.
 			vu32 *debug_wait = (vu32*)(P2C(*(vu32*)0x1000));
-			if( IsWiiU() )
-			{
-				// Debugger is not supported on Wii U.
-				*debug_wait = 0;
-			}
+			if (ConfigGetConfig(NIN_CFG_DEBUGWAIT))
+				*debug_wait = 1;
 			else
-			{
-				if (ConfigGetConfig(NIN_CFG_DEBUGWAIT)) {
-					*debug_wait = 1;
-				} else {
-					*debug_wait = 0;
-				}
-			}
+				*debug_wait = 0;
 			//if(DebuggerHook) PatchB( codehandler_stub_offset, DebuggerHook );
 			//if(DebuggerHook2) PatchB( codehandler_stub_offset, DebuggerHook2 );
 			//if(DebuggerHook3) PatchB( codehandler_stub_offset, DebuggerHook3 );

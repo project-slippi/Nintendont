@@ -82,7 +82,6 @@ extern char __di_stack_addr, __di_stack_size;
 u32 virtentry = 0;
 u32 drcAddress = 0;
 u32 drcAddressAligned = 0;
-bool isWiiVC = false;
 bool wiiVCInternal = false;
 
 // Global state for network connectivity, from kernel/net.c
@@ -107,17 +106,6 @@ int _main( int argc, char *argv[] )
 	//Important to do this as early as possible
 	if(read32(0x20109740) == 0xE59F1004)
 		virtentry = 0x20109740; //Address on Wii 
-	else if(read32(0x2010999C) == 0xE59F1004)
-		virtentry = 0x2010999C; //Address on WiiU
-
-	//Use libwiidrc values to detect Wii VC
-	sync_before_read((void*)0x12FFFFC0, 0x20);
-	isWiiVC = read32(0x12FFFFC0);
-	if(isWiiVC)
-	{
-		drcAddress = read32(0x12FFFFC4); //used in PADReadGC.c
-		drcAddressAligned = ALIGN_BACKWARD(drcAddress,0x20);
-	}
 
 	s32 ret = 0;
 	u32 DI_Thread = 0;
@@ -129,11 +117,8 @@ int _main( int argc, char *argv[] )
  */
 	BootStatus(ES_INIT, 0, 0);
 
-	if(!isWiiVC)
-	{
-		//Enable DVD Access
-		write32(HW_DIFLAGS, read32(HW_DIFLAGS) & ~DI_DISABLEDVD);
-	}
+	// Enable DVD Access
+	write32(HW_DIFLAGS, read32(HW_DIFLAGS) & ~DI_DISABLEDVD);
 
 	thread_set_priority( 0, 0x50 );
 
@@ -221,14 +206,9 @@ int _main( int argc, char *argv[] )
 		}
 	}
 
-	//Verification if we can read from disc
+	// Verification if we can read from disc; will shutdown on fail
 	if(memcmp(ConfigGetGamePath(), "di", 3) == 0)
-	{
-		if(isWiiVC) //will be inited later
-			wiiVCInternal = true;
-		else //will shutdown on fail
-			RealDI_Init();
-	}
+		RealDI_Init();
 
 /* STORAGE_MOUNT BOOT STAGE
  * Use fatfs to [conditionally] mount any SD/USB storage devices.
@@ -461,18 +441,6 @@ int _main( int argc, char *argv[] )
 			// USA/PAL games.
 			clear32(HW_PPCSPEED, (1<<17));
 			break;
-	}
-
-	// Set the Wii U widescreen setting.
-	u32 ori_widesetting = 0;
-	if (IsWiiU())
-	{
-		ori_widesetting = read32(0xd8006a0);
-		//if( ConfigGetConfig(NIN_CFG_WIIU_WIDE) )
-		//	write32(0xd8006a0, 0x30000004);
-		//else
-			write32(0xd8006a0, 0x30000002);
-		mask32(0xd8006a8, 0, 2);
 	}
 
 	// Main kernel loop
@@ -718,32 +686,19 @@ int _main( int argc, char *argv[] )
 		USBStorage_Shutdown();
 	}
 
-//make sure drive led is off before quitting
+	// make sure drive led is off before quitting
 	if( access_led ) clear32(HW_GPIO_OUT, GPIO_SLOT_LED);
 
-//make sure we set that back to the original
+	// make sure we set that back to the original
 	write32(HW_PPCSPEED, ori_ppcspeed);
 
-	if (IsWiiU())
-	{
-		write32(0xd8006a0, ori_widesetting);
-		mask32(0xd8006a8, 0, 2);
-	}
 WaitForExit:
-	/* Allow all IOS IRQs again */
+	// Allow all IOS IRQs again
 	write32(HW_IPC_ARMCTRL, 0x36);
-	/* Wii VC is unable to cleanly use ES */
-	if(isWiiVC)
-	{
-		dbgprintf("Force reboot into WiiU Menu\n");
-		WiiUResetToMenu();
-	}
-	else
-	{
-		dbgprintf("Kernel done, waiting for IOS Reload\n");
-		write32(RESET_STATUS, 0);
-		sync_after_write((void*)RESET_STATUS, 0x20);
-	}
+
+	dbgprintf("Kernel done, waiting for IOS Reload\n");
+	write32(RESET_STATUS, 0);
+	sync_after_write((void*)RESET_STATUS, 0x20);
 	while(1) mdelay(100);
 	return 0;
 }

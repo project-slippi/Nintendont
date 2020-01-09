@@ -130,25 +130,22 @@ void PatchKernel()
 
 	for( i=0; i < size; i+=4 )
 	{
-		if( !IsWiiU() )
+		if( memcmp( buf+i, UnusedSWI, sizeof(UnusedSWI) ) == 0 )
 		{
-			if( memcmp( buf+i, UnusedSWI, sizeof(UnusedSWI) ) == 0 )
-			{
 #ifdef DEBUG_MODULE_PATCH
-				gprintf("Found Unused SWI at %08X\r\n", i );
+			gprintf("Found Unused SWI at %08X\r\n", i );
 #endif
-				memcpy( buf+i, EXISendBuffer, sizeof( EXISendBuffer ) );
-				PatchCount |= 1;
-			}
+			memcpy( buf+i, EXISendBuffer, sizeof( EXISendBuffer ) );
+			PatchCount |= 1;
+		}
 
-			if( memcmp( buf+i, swi_v80, sizeof(swi_v80) ) == 0 )
-			{
+		if( memcmp( buf+i, swi_v80, sizeof(swi_v80) ) == 0 )
+		{
 #ifdef DEBUG_MODULE_PATCH
-				gprintf("Found SWI at %08X\r\n", i );
+			gprintf("Found SWI at %08X\r\n", i );
 #endif
-				memcpy( buf+i, swipatch_v80, sizeof( swipatch_v80 ) );
-				PatchCount |= 2;
-			}
+			memcpy( buf+i, swipatch_v80, sizeof( swipatch_v80 ) );
+			PatchCount |= 2;
 		}
 
 		if( memcmp( buf+i, HWAccess_ES, sizeof(HWAccess_ES) ) == 0 )
@@ -178,14 +175,7 @@ void PatchKernel()
 			PatchCount |= 0x10;
 		}
 
-		if( IsWiiU() )
-		{
-			if( PatchCount == 0x1C )
-				break;
-		} else {
-			if( PatchCount == 0x1F )
-				break;
-		}
+		if( PatchCount == 0x1F ) break;
 	}
 	//copy into place AFTER patching
 	memcpy(KernelDst, KernelReadBuf, KernelSize);

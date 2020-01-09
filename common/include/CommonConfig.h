@@ -168,6 +168,11 @@ enum VideoModes
 	GCVideoModePROG		= 3,
 };
 
+enum SettingsPage
+{
+	PAGE_SETTINGS		= 0,
+	PAGE_SLIPPI_SETTINGS	= 1,
+};
 
 //Mem0059 = 0, 0x04, 0x0080000
 //Mem0123 = 1, 0x08, 0x0100000

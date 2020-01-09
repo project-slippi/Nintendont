@@ -26,6 +26,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define MAX_GAMES 1024
 
+// Disc format colors.
+extern const u32 DiscFormatColors[8];
+
+// Dark gray for grayed-out menu items.
+#define DARK_GRAY 0x666666FF
+
 typedef enum
 {
 	// Disc format.
@@ -62,12 +68,64 @@ typedef struct GameInfo
 	char *Path;		// File path.
 } gameinfo;
 
-// Disc format colors.
-extern const u32 DiscFormatColors[8];
+// Device state.
+typedef enum {
+	DEV_OK = 0, // Device is open and has GC titles in "games" directory.
+	DEV_NO_OPEN = 1, // Device could not be opened.
+	DEV_NO_GAMES = 2, // Device was opened but has no "games" directory.
+	DEV_NO_TITLES = 3, // Device was opened but "games" directory is empty.
+} DevState;
 
-void SetShutdown(void);
-void HandleSTMEvent(u32 event);
-void HandleWiiMoteEvent(s32 chan);
+// Menu selection context.
+typedef struct _MenuCtx
+{
+	u32 menuMode;		// Menu mode. (0 == games; 1 == settings)
+	bool redraw;		// If true, redraw is required.
+	bool selected;		// If true, the user selected a game.
+	bool saveSettings;	// If true, save settings to slippi_nincfg.bin.
+
+	// Counters for key repeat.
+	struct {
+		u32 Up;
+		u32 Down;
+		u32 Left;
+		u32 Right;
+	} held;
+
+	// Games menu.
+	struct {
+		s32 posX;	// Selected game index.
+		s32 scrollX;	// Current scrolling position.
+		u32 listMax;	// Maximum number of games to show onscreen at once.
+
+		const gameinfo *gi;	// Game information.
+		int gamecount;		// Game count.
+
+		bool canBeBooted;	// Selected game is bootable.
+		bool canShowInfo;	// Can show information for the selected game.
+	} games;
+
+	// Settings menu.
+	struct {
+		u32 settingPart;	// 0 == left column; 1 == right column
+		s32 posX;		    // Selected setting index.
+		u32 page;           // 0 == normal; 1 == slippi
+	} settings;
+} MenuCtx;
+
+#define FPAD_WRAPPER_REPEAT(Key) \
+static inline int FPAD_##Key##_Repeat(MenuCtx *ctx) \
+{ \
+	int ret = 0; \
+	if (FPAD_##Key(1)) { \
+		ret = (ctx->held.Key == 0 || ctx->held.Key > 10); \
+		ctx->held.Key++; \
+	} else { \
+		ctx->held.Key = 0; \
+	} \
+	return ret; \
+}
+
 
 /**
  * Select the source device and game.
@@ -86,8 +144,7 @@ void ShowMessageScreen(const char *msg);
  * @param msg Message.
  * @param ret Return value. If non-zero, text will be printed in red.
  */
-void ShowMessageScreenAndExit(const char *msg, int ret)
-	__attribute__ ((noreturn));
+void ShowMessageScreenAndExit(const char *msg, int ret) __attribute__ ((noreturn));
 
 // Predefined messages.
 static inline void ShowLoadingScreen(void)
@@ -137,5 +194,8 @@ typedef enum {
  */
 void PrintLoadKernelError(LoadKernelError_t iosErr, int err);
 
+void SetShutdown(void);
+void HandleWiiMoteEvent(s32 chan);
 void ReconfigVideo( GXRModeObj *vidmode );
+
 #endif

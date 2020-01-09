@@ -358,26 +358,6 @@ static inline void sync_after_write_align32(void *Buf, u32 Len)
 
 #define RESET_STATUS 0x13003420
 
-/**
- * Is this system a Wii U?
- * @return True if this is Wii U; false if not.
- */
-extern bool isWiiVC;
-static inline bool IsWiiU(void)
-{
-	return ((read16(0xD8005A0) == 0xCAFE) || isWiiVC);
-}
-static inline bool IsWiiUFastCPU(void)
-{
-	return ((read16(0xD8005A0) == 0xCAFE) && ((read32(0xD8005B0) & 0x20) == 0));
-}
-
-/* Writing to this reboots the WiiU */
-static inline void WiiUResetToMenu(void)
-{
-	write32( 0x0D8005E0, 0xFFFFFFFE );
-}
-
 extern u32 virtentry;
 static inline u32 do_thread_create(void *entry, u32 *stackaddr, u32 stacksize, u32 prio)
 {
