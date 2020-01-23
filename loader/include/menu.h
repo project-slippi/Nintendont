@@ -76,6 +76,12 @@ typedef enum {
 	DEV_NO_TITLES = 3, // Device was opened but "games" directory is empty.
 } DevState;
 
+typedef struct PageInfo
+{
+	u32 ID; // ID of the page
+	char *Name;
+} pageinfo;
+
 // Menu selection context.
 typedef struct _MenuCtx
 {
@@ -107,10 +113,16 @@ typedef struct _MenuCtx
 
 	// Settings menu.
 	struct {
-		u32 settingPart;	// 0 == left column; 1 == right column
-		s32 posX;		    // Selected setting index.
-		u32 page;           // 0 == normal; 1 == slippi
+		u32 settingPart;  // 0 == left column; 1 == right column
+		s32 posX;         // Selected setting index.
 	} settings;
+
+	struct {
+		u32 index;
+		u32 selected;
+		pageinfo *pages;
+		u32 count;
+	} pages;
 } MenuCtx;
 
 #define FPAD_WRAPPER_REPEAT(Key) \

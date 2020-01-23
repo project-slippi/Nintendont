@@ -179,6 +179,20 @@ static const char *desc_slippi_port_a[] = {
 	NULL
 };
 
+const pageinfo slippiSettingsPage = {
+	PAGE_SLIPPI_SETTINGS,
+	"Slippi Settings",
+};
+
+const pageinfo ninSettingsPage = {
+	PAGE_SETTINGS,
+	"Nintendont Settings",
+};
+
+pageinfo allPages[] = {
+	slippiSettingsPage,
+	ninSettingsPage,
+};
 
 // Inline function declarations
 FPAD_WRAPPER_REPEAT(Up)
@@ -912,7 +926,7 @@ static const char *const *GetMeleeDescription(int posX)
  */
 static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 {
-	switch (ctx->settings.page) {
+	switch (ctx->pages.selected) {
 	case PAGE_SETTINGS:
 		switch (ctx->settings.posX) {
 		case NIN_CFG_BIT_CHEATS: 
@@ -945,8 +959,6 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 			return desc_slippi_file_write;
 		case NIN_SLIPPI_PORT_A: 
 			return desc_slippi_port_a;
-		case NIN_SETTINGS_PAGE: 
-			return NULL;
 		default: 
 			return GetMeleeDescription(ctx->settings.posX);
 		}
@@ -960,26 +972,13 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
  */
 static void Menu_Settings_InputHandler(MenuCtx *ctx)
 {
-	// Handle an X press - switch between settings pages
-	if (FPAD_X(0))
-	{
-		if (ctx->settings.page == PAGE_SETTINGS)
-			ctx->settings.page = PAGE_SLIPPI_SETTINGS;
-		else if (ctx->settings.page == PAGE_SLIPPI_SETTINGS)
-			ctx->settings.page = PAGE_SETTINGS;
-
-		ctx->settings.posX = 0;
-		ctx->settings.settingPart = 0;
-		ctx->redraw = true;
-	}
-
 	if (FPAD_Down_Repeat(ctx))
 	{
 		// Down: Move the cursor down by 1 setting.
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(ctx->settings.posX), " " );
 		ctx->settings.posX++;
 
-		switch (ctx->settings.page) {
+		switch (ctx->pages.selected) {
 		case PAGE_SETTINGS:
 			// Wrap around to the beginning if we're at the end
 			if (ctx->settings.posX > NIN_SETTINGS_LAST - 1)
@@ -1001,9 +1000,11 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 				ctx->settings.posX++;
 			}
 			break;
-		case PAGE_SLIPPI_SETTINGS:
+		case PAGE_SLIPPI_SETTINGS: ;
+			const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+
 			// Handle slippi page position
-			if (ctx->settings.posX > NIN_SLIPPI_SETTINGS_LAST - 1)
+			if (ctx->settings.posX > NIN_SLIPPI_DYNAMIC_CODES_START + codeConfig->lineItemCount - 1)
 				ctx->settings.posX = 0;
 			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || 
 				ctx->settings.posX == NIN_SLIPPI_BLANK_2)
@@ -1021,7 +1022,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(ctx->settings.posX), " " );
 		ctx->settings.posX--;
 
-		switch (ctx->settings.page) {
+		switch (ctx->pages.selected) {
 		case PAGE_SETTINGS:
 			// Wrap around to the last entry
 			if (ctx->settings.posX < 0)
@@ -1035,11 +1036,13 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			if (((ncfg->VideoMode & NIN_VID_FORCE) == 0) && (ctx->settings.posX == NIN_SETTINGS_VIDEOMODE))
 				ctx->settings.posX--;
 			break;
-		case PAGE_SLIPPI_SETTINGS:
+		case PAGE_SLIPPI_SETTINGS: ;
+			const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+
 			// Handle slippi page positioning
 			if (ctx->settings.posX < 0)
 			{
-				ctx->settings.posX = NIN_SLIPPI_SETTINGS_LAST - 1;
+				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START + codeConfig->lineItemCount - 1;
 			}
 
 			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
@@ -1054,7 +1057,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 
 	if (FPAD_Left_Repeat(ctx))
 	{
-		if (ctx->settings.page == PAGE_SETTINGS)
+		if (ctx->pages.selected == PAGE_SETTINGS)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX) {
@@ -1088,7 +1091,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 	}
 	else if (FPAD_Right_Repeat(ctx))
 	{
-		if (ctx->settings.page == PAGE_SETTINGS)
+		if (ctx->pages.selected == PAGE_SETTINGS)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX) {
@@ -1123,7 +1126,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 
 	if (FPAD_OK(0))
 	{
-		if (ctx->settings.page == PAGE_SETTINGS)
+		if (ctx->pages.selected == PAGE_SETTINGS)
 		{
 			// Left column.
 			ctx->saveSettings = true;
@@ -1198,12 +1201,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			//	ncfg->Config ^= (NIN_CFG_SKIP_IPL);
 			//	//ctx->redraw = true;
 			//	break;
-			
-			case NIN_SLIPPI_SETTINGS_PAGE:
-				ctx->settings.page = PAGE_SLIPPI_SETTINGS;
-				ctx->settings.posX = 0;
-				ctx->redraw = 1;
-				break;
+
 			default:
 				break;
 			}
@@ -1216,7 +1214,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			}
 			ctx->redraw = true;
 		}
-		else if (ctx->settings.page == PAGE_SLIPPI_SETTINGS)
+		else if (ctx->pages.selected == PAGE_SLIPPI_SETTINGS)
 		{
 			// Slippi page settings
 			switch (ctx->settings.posX) {
@@ -1233,11 +1231,6 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			case NIN_SLIPPI_PORT_A:
 				ctx->saveSettings = true;
 				ncfg->Config ^= (NIN_CFG_SLIPPI_PORT_A);
-				ctx->redraw = true;
-				break;
-			case NIN_SETTINGS_PAGE:
-				ctx->settings.page = PAGE_SETTINGS;
-				ctx->settings.posX = 0;
 				ctx->redraw = true;
 				break;
 			default: ; // need semicolon to declare variable on next line
@@ -1274,7 +1267,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 {
 	u32 ListLoopIndex = 0;
 
-	if (ctx->settings.page == PAGE_SETTINGS)
+	if (ctx->pages.selected == PAGE_SETTINGS)
 	{
 		// Standard boolean settings.
 		for (; ListLoopIndex < NIN_CFG_BIT_LAST; ListLoopIndex++)
@@ -1392,9 +1385,6 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Screen Position", vidOffset);
 		ListLoopIndex++;
-		PrintFormat(MENU_SIZE, GREEN, MENU_POS_X + 50, SettingY(ListLoopIndex),
-				"Slippi Settings \xE2\x96\xB6");
-		ListLoopIndex++;
 	} 
 	else 
 	{
@@ -1427,10 +1417,6 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 						"%-15s:%s", item->name, option->name);
 				ListLoopIndex++;
 		}
-		
-		PrintFormat(MENU_SIZE, RED, MENU_POS_X + 50, SettingY(ListLoopIndex),
-				"Regular Settings \xE2\x96\xB6");
-		ListLoopIndex++;
 	}
 
 	// Draw the cursor
@@ -1446,11 +1432,11 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		do {
 			if (**desc != 0)
 			{
-				if (ctx->settings.page == PAGE_SETTINGS)
+				if (ctx->pages.selected == PAGE_SETTINGS)
 				{
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 300, SettingY(line_num), *desc);
 				}
-				else if (ctx->settings.page == PAGE_SLIPPI_SETTINGS)
+				else if (ctx->pages.selected == PAGE_SLIPPI_SETTINGS)
 				{
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(line_num), *desc);
 				}
@@ -1563,6 +1549,12 @@ static int Menu_GameSelection(void)
 	ctx.games.gi = gi;
 	ctx.games.gamecount = gamecount;
 
+	// Initialize ctx.pages
+	ctx.pages.index = 0;
+	ctx.pages.selected = 0;
+	ctx.pages.count = 2;
+	ctx.pages.pages = allPages;
+
 	// Set the default game
 	u32 i;
 	for (i = 0; i < gamecount; ++i)
@@ -1608,12 +1600,29 @@ static int Menu_GameSelection(void)
 			if (ctx.menuMode == 1)
 			{
 				ctx.settings.posX = 0;
-				ctx.settings.page = PAGE_SETTINGS;
+				ctx.pages.index = 0;
 				ctx.settings.settingPart = 0;
 			}
 			ctx.redraw = 1;
 		}
 
+		if (ctx.menuMode != 0 && FPAD_RTrigger(0))
+		{
+			ctx.pages.index = (ctx.pages.index + 1) % ctx.pages.count;
+		}
+
+		if (ctx.menuMode != 0 && FPAD_LTrigger(0))
+		{
+			ctx.pages.index = (ctx.pages.index - 1 + ctx.pages.count) % ctx.pages.count;
+		}
+
+		u32 newSelected = ctx.pages.pages[ctx.pages.index].ID;
+		if (ctx.pages.selected != newSelected)
+		{
+			ctx.pages.selected = newSelected;
+			ctx.redraw = 1;
+		}
+		
 		bool ret = false;
 		if (ctx.menuMode == 0)
 			ret = Menu_GameSelection_Handler(&ctx);
@@ -1640,15 +1649,17 @@ static int Menu_GameSelection(void)
 
 				// If the selected game is not DISC01, enable "Game Info".
 				color = ((ctx.games.canShowInfo) ? BLACK : DARK_GRAY);
-				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 410, MENU_POS_Y + 20*3, "X : Game Info");
+				PrintFormat(DEFAULT_SIZE, color, MENU_POS_X + 410, MENU_POS_Y + 20*3, "X   : Game Info");
 			}
 			// Draw header text for the settings menu
 			else
 			{
-				if (ctx.settings.page == PAGE_SETTINGS)
-					PrintButtonActions("Go Back", "Select", "Settings", "Slippi Settings");
-				else if (ctx.settings.page == PAGE_SLIPPI_SETTINGS)
-					PrintButtonActions("Go Back", "Select", "Settings", "Regular Settings");
+				PrintButtonActions("Go Back", "Select", "Game List", NULL);
+
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 80, MENU_POS_Y + 20*3 + 10, ARROW_LEFT);
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 300, MENU_POS_Y + 20*3 + 10, ARROW_RIGHT);
+
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 100, MENU_POS_Y + 20*3 + 10, ctx.pages.pages[ctx.pages.index].Name);
 			}
 
 			// FIXME: If devState != DEV_OK,

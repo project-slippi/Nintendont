@@ -275,3 +275,30 @@ bool FPAD_Start( bool ILock )
 	return false;
 }
 
+bool FPAD_RTrigger( bool ILock )
+{
+	if( !ILock && SLock ) return false;
+
+	// TODO: Add handlers for other controllers
+	if( PAD_Pressed & PAD_TRIGGER_R )
+	{
+		Repeat = 0;
+		SLock = true;
+		return true;
+	}
+	return false;
+}
+
+bool FPAD_LTrigger( bool ILock )
+{
+	if( !ILock && SLock ) return false;
+
+	// TODO: Add handlers for other controllers
+	if( PAD_Pressed & PAD_TRIGGER_L )
+	{
+		Repeat = 0;
+		SLock = true;
+		return true;
+	}
+	return false;
+}
