@@ -1620,6 +1620,8 @@ static int Menu_GameSelection(void)
 		if (ctx.pages.selected != newSelected)
 		{
 			ctx.pages.selected = newSelected;
+			ctx.settings.posX = 0;
+			ctx.settings.settingPart = 0;
 			ctx.redraw = 1;
 		}
 		
