@@ -906,8 +906,8 @@ static bool Menu_GameSelection_Handler(MenuCtx *ctx)
  */
 static const char *const *GetMeleeDescription(int posX)
 {
-	// Codes start at index 5
-	int index = posX - 5; 
+	// Codes start at index NIN_SLIPPI_DYNAMIC_CODES_START
+	int index = posX - NIN_SLIPPI_DYNAMIC_CODES_START; 
 
 	const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 
@@ -959,6 +959,8 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 			return desc_slippi_file_write;
 		case NIN_SLIPPI_PORT_A: 
 			return desc_slippi_port_a;
+		case NIN_SLIPPI_CUSTOM_CODES:
+			return desc_cheats;
 		default: 
 			return GetMeleeDescription(ctx->settings.posX);
 		}
@@ -1010,7 +1012,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 				ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Settings 3 and 4 are skipped
-				ctx->settings.posX = 5;
+				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START;
 			}
 			break;
 		}
@@ -1047,8 +1049,8 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 
 			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
-				// Settings 3 and 4 are skipped
-				ctx->settings.posX = 2;
+				// Blank spots are skipped
+				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START - 3;
 			}
 			break;
 		}
@@ -1216,28 +1218,30 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		}
 		else if (ctx->pages.selected == PAGE_SLIPPI_SETTINGS)
 		{
+			ctx->saveSettings = true;
+			ctx->redraw = true;
+
 			// Slippi page settings
 			switch (ctx->settings.posX) {
 			case NIN_SLIPPI_NETWORKING:
-				ctx->saveSettings = true;
 				ncfg->Config ^= (NIN_CFG_NETWORK);
-				ctx->redraw = true;
 				break;
 			case NIN_SLIPPI_FILE_WRITE:
-				ctx->saveSettings = true;
 				ncfg->Config ^= (NIN_CFG_SLIPPI_FILE_WRITE);
-				ctx->redraw = true;
 				break;
 			case NIN_SLIPPI_PORT_A:
-				ctx->saveSettings = true;
 				ncfg->Config ^= (NIN_CFG_SLIPPI_PORT_A);
-				ctx->redraw = true;
+				break;
+			case NIN_SLIPPI_CUSTOM_CODES:
+				ncfg->Config ^= (NIN_CFG_CHEATS);
 				break;
 			default: ; // need semicolon to declare variable on next line
 				const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
-				int index = ctx->settings.posX - 5;
+				int index = ctx->settings.posX - NIN_SLIPPI_DYNAMIC_CODES_START;
 				if (index < 0 || index > codeConfig->lineItemCount) {
 					// If outside of the range for codes, do nothing
+					ctx->saveSettings = false;
+					ctx->redraw = false;
 					break;
 				}
 
@@ -1251,9 +1255,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[index]];
 
 				// Set the value of the option in the config
-				ctx->saveSettings = true; // Indicate we need to save
 				ncfg->MeleeCodeOptions[item->identifier] = option->value;
-				ctx->redraw = true;
 				break;
 			}
 		}
@@ -1401,6 +1403,11 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		// Slippi Port A
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Slippi on Port A", (ncfg->Config & (NIN_CFG_SLIPPI_PORT_A)) ? "Yes" : "No ");
+		ListLoopIndex++;
+
+		// Custom Cheats
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
+				"%-18s:%-4s", "Custom Cheats/GCT", (ncfg->Config & (NIN_CFG_BIT_CHEATS)) ? "Yes" : "No ");
 		ListLoopIndex += 2;
 
 		PrintFormat(14, DARK_BLUE, MENU_POS_X + 50, SettingY(ListLoopIndex), "MELEE CODES");
@@ -1428,18 +1435,12 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 	const char *const *desc = GetSettingsDescription(ctx);
 	if (desc != NULL)
 	{
-		int line_num = 12;
+		int descFontSize = 14;
+		int line_num = 0;
 		do {
 			if (**desc != 0)
 			{
-				if (ctx->pages.selected == PAGE_SETTINGS)
-				{
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 300, SettingY(line_num), *desc);
-				}
-				else if (ctx->pages.selected == PAGE_SLIPPI_SETTINGS)
-				{
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 30, SettingY(line_num), *desc);
-				}
+				PrintFormat(descFontSize, BLACK, MENU_POS_X + 300, 127 + (descFontSize * line_num), *desc);
 			}
 			line_num++;
 		} while (*(++desc) != NULL);
@@ -1606,12 +1607,12 @@ static int Menu_GameSelection(void)
 			ctx.redraw = 1;
 		}
 
-		if (ctx.menuMode != 0 && FPAD_RTrigger(0))
+		if (ctx.menuMode != 0 && (FPAD_RTrigger(0) || FPAD_X(0)))
 		{
 			ctx.pages.index = (ctx.pages.index + 1) % ctx.pages.count;
 		}
 
-		if (ctx.menuMode != 0 && FPAD_LTrigger(0))
+		if (ctx.menuMode != 0 && (FPAD_LTrigger(0) || FPAD_Y(0)))
 		{
 			ctx.pages.index = (ctx.pages.index - 1 + ctx.pages.count) % ctx.pages.count;
 		}
@@ -1658,10 +1659,26 @@ static int Menu_GameSelection(void)
 			{
 				PrintButtonActions("Go Back", "Select", "Game List", NULL);
 
-				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 80, MENU_POS_Y + 20*3 + 10, ARROW_LEFT);
-				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 300, MENU_POS_Y + 20*3 + 10, ARROW_RIGHT);
+				// Print Tab Information
+				int leftOffset = 140;
+				int rightOffset = 440;
+				int charWidth = 10;
 
-				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + 100, MENU_POS_Y + 20*3 + 10, ctx.pages.pages[ctx.pages.index].Name);
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + leftOffset, MENU_POS_Y + 20*3 + 10, "%sL", CHEVRON_LEFT);
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + rightOffset, MENU_POS_Y + 20*3 + 10, "R%s", CHEVRON_RIGHT);
+
+				char *tabName = ctx.pages.pages[ctx.pages.index].Name;
+				int tabNameLen = strlen(tabName);
+				int emptySpace = ((2 * charWidth) + rightOffset - leftOffset) - (tabNameLen * charWidth);
+				int nameOffset = leftOffset + (emptySpace / 2);
+
+				PrintFormat(DEFAULT_SIZE, DARK_BLUE, MENU_POS_X + nameOffset, MENU_POS_Y + 20*3 + 10, tabName);
+
+				// Print tab count
+				if (ctx.pages.count > 1)
+				{
+					PrintFormat(14, DARK_BLUE, MENU_POS_X + 280, MENU_POS_Y + 20*2 + 14, "%d / %d", ctx.pages.index + 1, ctx.pages.count);
+				}
 			}
 
 			// FIXME: If devState != DEV_OK,

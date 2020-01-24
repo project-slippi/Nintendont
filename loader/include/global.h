@@ -50,6 +50,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define ARROW_LEFT			"\xE2\x97\x80"
 #define ARROW_RIGHT			"\xE2\x96\xB6"
 
+#define CHEVRON_LEFT "\xE2\x80\xB9"
+#define CHEVRON_RIGHT "\xE2\x80\xBA"
+
 // RGBA Colors
 #define AQUA				0x00FFFFFF
 #define BLACK				0x000000FF
