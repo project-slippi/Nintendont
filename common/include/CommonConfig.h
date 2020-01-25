@@ -6,7 +6,7 @@
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
-#define NIN_CFG_VERSION		0x0000000A
+#define NIN_CFG_VERSION		0x0000000C
 
 #define NIN_CFG_MAXPAD 4
 
@@ -17,19 +17,19 @@ typedef struct NIN_CFG
 	unsigned int		Config;
 	unsigned int		VideoMode;
 	unsigned int		Language;
-	char			GamePath[255];
+	char				GamePath[255];
 	unsigned int		GameID;
 	unsigned char		MemCardBlocks;
-	signed char		VideoScale;
-	signed char		VideoOffset;
+	signed char			VideoScale;
+	signed char			VideoOffset;
 	unsigned char		Unused;
 	unsigned int		UseUSB;			// 0 for SD, 1 for USB
-	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID];
+	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID + 1]; // IDs are 0 indexed so add 1
 } NIN_CFG;
 
 enum ninconfigbitpos
 {
-	NIN_CFG_BIT_CHEATS	= (0),
+	NIN_CFG_BIT_CHEATS		= (0),
 	NIN_CFG_BIT_DEBUGGER	= (1),	// Only for Wii Version
 	NIN_CFG_BIT_DEBUGWAIT	= (2),	// Only for Wii Version
 	NIN_CFG_BIT_MEMCARDEMU	= (3),
@@ -37,14 +37,14 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_FORCE_PROG	= (5),
 	NIN_CFG_BIT_REMLIMIT	= (6),	// New Versions
 	NIN_CFG_BIT_OSREPORT	= (7),
-	NIN_CFG_BIT_LOG		= (8),
-	NIN_CFG_BIT_LED		= (9),
-	NIN_CFG_BIT_AUTO_BOOT		= (10),
-	NIN_CFG_BIT_LAST	= (11),
+	NIN_CFG_BIT_LOG			= (8),
+	NIN_CFG_BIT_LED			= (9),
+	NIN_CFG_BIT_AUTO_BOOT	= (10),
+	NIN_CFG_BIT_LAST		= (11),
 
 	NIN_CFG_BIT_MC_MULTI	= (11),
 	NIN_CFG_BIT_SKIP_IPL	= (12),
-	NIN_CFG_BIT_NETWORK	= (13),
+	NIN_CFG_BIT_NETWORK		= (13),
 	NIN_CFG_BIT_SLIPPI_FILE_WRITE	= (14),
 	NIN_CFG_BIT_SLIPPI_PORT_A = (15),
 
@@ -62,8 +62,8 @@ enum ninconfig
 	NIN_CFG_FORCE_PROG	= (1<<NIN_CFG_BIT_FORCE_PROG),
 	NIN_CFG_REMLIMIT	= (1<<NIN_CFG_BIT_REMLIMIT),
 	NIN_CFG_OSREPORT	= (1<<NIN_CFG_BIT_OSREPORT),
-	NIN_CFG_LOG		= (1<<NIN_CFG_BIT_LOG),
-	NIN_CFG_LED		= (1<<NIN_CFG_BIT_LED),
+	NIN_CFG_LOG			= (1<<NIN_CFG_BIT_LOG),
+	NIN_CFG_LED			= (1<<NIN_CFG_BIT_LED),
 	NIN_CFG_AUTO_BOOT	= (1<<NIN_CFG_BIT_AUTO_BOOT),
 
 	NIN_CFG_MC_MULTI	= (1<<NIN_CFG_BIT_MC_MULTI),
@@ -87,7 +87,24 @@ enum ninextrasettings
 	NIN_SETTINGS_SKIP_IPL,
 	NIN_SETTINGS_VIDEO_WIDTH,
 	NIN_SETTINGS_SCREEN_POSITION,
+	NIN_SLIPPI_SETTINGS_PAGE,
 	NIN_SETTINGS_LAST,
+};
+
+enum ninslippisettings
+{
+	NIN_SLIPPI_NETWORKING,
+	NIN_SLIPPI_FILE_WRITE,
+	NIN_SLIPPI_PORT_A,
+	NIN_SLIPPI_BLANK_1,
+	NIN_SLIPPI_BLANK_2,
+	NIN_SLIPPI_CONTROLLER,
+	NIN_SLIPPI_PAL,
+	NIN_SLIPPI_GAME_MODS,
+	NIN_SLIPPI_LAG_REDUC,
+	NIN_SLIPPI_RULESET,
+	NIN_SETTINGS_PAGE,
+	NIN_SLIPPI_SETTINGS_LAST,
 };
 
 enum ninvideomodeindex

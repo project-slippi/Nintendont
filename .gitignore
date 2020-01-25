@@ -15,3 +15,4 @@ codehandler/*.h
 !kernel/gecko/*.bin
 kernel/gecko/*.h
 kernel/bin2h/bin2h
+loader/*.lnk

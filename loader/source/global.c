@@ -192,30 +192,18 @@ void Initialise(bool autoboot)
 
 	// Calculate the background image scale.
 	bg_isWidescreen = (CONF_GetAspectRatio() == CONF_ASPECT_16_9);
-	if (bg_isWidescreen)
-	{
-		// Widescreen. 0.75x scaling, 80px offset.
-		bg_xScale = 0.75f;
-		bg_xPos = 80;
-	}
-	else
-	{
-		// Standard screen. 1.0x scaling, 0px offset.
-		bg_xScale = 1.0f;
-		bg_xPos = 0;
-	}
+
+	// Background image scaling
+	bg_xScale = 1.0f;
+	bg_xPos = 0;
 
 	if(autoboot == false)
 	{
-		for (i=0; i<255; i +=5) // Fade background image in from black screen
+		// Fade background image by incrementing opacity
+		for (i=0; i<255; i +=5)
 		{
-			if (bg_isWidescreen)
-			{
-				// Clear the sides.
-				GRRLIB_Rectangle(0, 0, 80, 480, RGBA(222, 223, 224, i), true);
-				GRRLIB_Rectangle(80+480, 0, 80, 480, RGBA(222, 223, 224, i), true);
-			}
-			GRRLIB_DrawImg(bg_xPos, 0, background, 0, bg_xScale, 1, RGBA(255, 255, 255, i)); // Opacity increases as i does
+			GRRLIB_DrawImg(bg_xPos, 0, background, 0, bg_xScale, 1,
+				RGBA(255, 255, 255, i));
 			GRRLIB_Render();
 		}
 		ClearScreen();
