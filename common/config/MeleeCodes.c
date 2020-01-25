@@ -155,7 +155,7 @@ const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
 
 static const char *modsDescription[] = {
 	"Game mods to apply",
-	"",
+	"Each option includes all mods above it",
 	"",
 	"[Stealth]",
 	"  Neutral Spawns,",
