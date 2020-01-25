@@ -163,13 +163,16 @@ static const char *desc_memcard_multi[] = {
 };
 static const char *desc_networking[] = {
 	"Enable Slippi networking.",
-	"Wii network settings must be configured",
+	"Network settings must be configured",
+	"in the Wii settings menu",
 	"in order to use this feature.",
 	NULL
 };
 static const char *desc_slippi_file_write[] = {
-	"Write Slippi replays to secondary storage device.",
-	"Requires both a USB and SD device plugged in.",
+	"Write Slippi replays to a",
+	"secondary storage device.",
+	"Requires a USB AND SD device",
+	"to be plugged in.",
 	NULL
 };
 static const char *desc_slippi_port_a[] = {
