@@ -51,5 +51,7 @@ bool FPAD_Cancel( bool ILock );
 bool FPAD_Start( bool ILock );
 bool FPAD_X( bool ILock );
 bool FPAD_Y( bool ILock );
+bool FPAD_RTrigger( bool ILock );
+bool FPAD_LTrigger( bool ILock );
 
 #endif

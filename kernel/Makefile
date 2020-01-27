@@ -4,6 +4,9 @@
 # Clear the implicit built in rules
 #---------------------------------------------------------------------------------
 
+# Grab some info from git to make versioning somewhat easier.
+GIT_VERSION := "$(shell git describe --dirty --always --tags)"
+
 .SUFFIXES:
 #---------------------------------------------------------------------------------
 ifeq ($(strip $(DEVKITARM)),)
@@ -26,7 +29,8 @@ endif
 CFLAGS	:= -mbig-endian -O3 -std=gnu89 -g -I. -Wall \
 	   -mcpu=arm926ej-s -msoft-float -mfloat-abi=soft \
 	   -fdata-sections -ffunction-sections -fno-builtin-toupper -fno-builtin-memcpy \
-	   -fno-builtin-memset -fno-builtin-memcmp -fno-builtin-malloc -fno-builtin-free
+	   -fno-builtin-memset -fno-builtin-memcmp -fno-builtin-malloc -fno-builtin-free \
+	   -DNIN_GIT_VERSION=\"$(GIT_VERSION)\"
 CPPFLAGS := -I. -I../fatfs -I../codehandler
 
 ASFLAGS	:= -mbig-endian -mcpu=arm926ej-s

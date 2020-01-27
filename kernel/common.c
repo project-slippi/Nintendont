@@ -143,7 +143,6 @@ static const char stm_imm[] ALIGNED(32) = "/dev/stm/immediate";
 static u8 stm_in[0x20] ALIGNED(32);
 static u8 stm_out[0x20] ALIGNED(32);
 
-extern bool isWiiVC;
 void Shutdown( void )
 {
 	dbgprintf("Got Shutdown button call\n");

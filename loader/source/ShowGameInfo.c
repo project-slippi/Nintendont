@@ -277,7 +277,7 @@ static void DrawGameInfoScreen(const gameinfo *gi, const MD5VerifyState_t *md5)
 	const char *const btn_B = (md5->running ? "Cancel MD5" : NULL);
 
 	// Print information.
-	PrintInfo();
+	PrintBuildInfo();
 	PrintButtonActions("Go Back", NULL, btn_B, NULL);
 
 	// "Calculate MD5" should be displayed for all formats,

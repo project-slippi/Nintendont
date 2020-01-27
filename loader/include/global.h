@@ -50,6 +50,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define ARROW_LEFT			"\xE2\x97\x80"
 #define ARROW_RIGHT			"\xE2\x96\xB6"
 
+#define CHEVRON_LEFT "\xE2\x80\xB9"
+#define CHEVRON_RIGHT "\xE2\x80\xBA"
+
 // RGBA Colors
 #define AQUA				0x00FFFFFF
 #define BLACK				0x000000FF
@@ -145,19 +148,6 @@ typedef struct
 
 } __attribute__((packed)) TitleMetaData;
 
-/**
- * Is this system a Wii U?
- * @return True if this is Wii U; false if not.
- */
-extern bool isWiiVC;
-static inline bool IsWiiU(void)
-{
-	return ((*(vu16*)0xCD8005A0 == 0xCAFE) || isWiiVC);
-}
-static inline bool IsWiiUFastCPU(void)
-{
-	return ((*(vu16*)0xCD8005A0 == 0xCAFE) && ((*(vu32*)0xCD8005B0 & 0x20) == 0));
-}
 // FIXME: This return type isn't quite correct...
 const char* const GetRootDevice();
 void RAMInit(void);
@@ -191,7 +181,6 @@ void CloseDevices();
 void hexdump(void *d, int len);
 void DrawBuffer(void);
 void UpdateScreen(void);
-void Screenshot(void);
 raw_irq_handler_t BeforeIOSReload();
 void AfterIOSReload(raw_irq_handler_t handle, u32 rev);
 

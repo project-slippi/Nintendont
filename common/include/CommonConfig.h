@@ -2,7 +2,6 @@
 #ifndef __COMMON_CONFIG_H__
 #define __COMMON_CONFIG_H__
 
-#include "NintendontVersion.h"
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
@@ -32,10 +31,10 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_CHEATS		= (0),
 	NIN_CFG_BIT_DEBUGGER	= (1),	// Only for Wii Version
 	NIN_CFG_BIT_DEBUGWAIT	= (2),	// Only for Wii Version
-	NIN_CFG_BIT_MEMCARDEMU	= (3),
+	NIN_CFG_BIT_MEMCARDEMU	= (3), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_FORCE_WIDE	= (4),
 	NIN_CFG_BIT_FORCE_PROG	= (5),
-	NIN_CFG_BIT_REMLIMIT	= (6),	// New Versions
+	NIN_CFG_BIT_REMLIMIT	= (6), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_OSREPORT	= (7),
 	NIN_CFG_BIT_LOG			= (8),
 	NIN_CFG_BIT_LED			= (9),
@@ -43,7 +42,7 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_LAST		= (11),
 
 	NIN_CFG_BIT_MC_MULTI	= (11),
-	NIN_CFG_BIT_SKIP_IPL	= (12),
+	NIN_CFG_BIT_SKIP_IPL	= (12), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_NETWORK		= (13),
 	NIN_CFG_BIT_SLIPPI_FILE_WRITE	= (14),
 	NIN_CFG_BIT_SLIPPI_PORT_A = (15),
@@ -87,7 +86,6 @@ enum ninextrasettings
 	NIN_SETTINGS_SKIP_IPL,
 	NIN_SETTINGS_VIDEO_WIDTH,
 	NIN_SETTINGS_SCREEN_POSITION,
-	NIN_SLIPPI_SETTINGS_PAGE,
 	NIN_SETTINGS_LAST,
 };
 
@@ -96,15 +94,10 @@ enum ninslippisettings
 	NIN_SLIPPI_NETWORKING,
 	NIN_SLIPPI_FILE_WRITE,
 	NIN_SLIPPI_PORT_A,
+	NIN_SLIPPI_CUSTOM_CODES,
 	NIN_SLIPPI_BLANK_1,
 	NIN_SLIPPI_BLANK_2,
-	NIN_SLIPPI_CONTROLLER,
-	NIN_SLIPPI_PAL,
-	NIN_SLIPPI_GAME_MODS,
-	NIN_SLIPPI_LAG_REDUC,
-	NIN_SLIPPI_RULESET,
-	NIN_SETTINGS_PAGE,
-	NIN_SLIPPI_SETTINGS_LAST,
+	NIN_SLIPPI_DYNAMIC_CODES_START,
 };
 
 enum ninvideomodeindex
@@ -169,6 +162,11 @@ enum VideoModes
 	GCVideoModePROG		= 3,
 };
 
+enum SettingsPage
+{
+	PAGE_SETTINGS		= 0,
+	PAGE_SLIPPI_SETTINGS	= 1,
+};
 
 //Mem0059 = 0, 0x04, 0x0080000
 //Mem0123 = 1, 0x08, 0x0100000

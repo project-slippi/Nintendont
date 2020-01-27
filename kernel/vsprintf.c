@@ -341,9 +341,8 @@ int dbgprintf( const char *fmt, ...)
 			{
 				u32 v = read32(0x3140);
 				dbgprintf("Nintendont IOS%d v%d.%d\r\n", v >> 16, (v >> 8) & 0xff, v & 0xff);
-
 				dbgprintf("Built   : %s %s\r\n", __DATE__, __TIME__ );
-				dbgprintf("Version : %d.%d\r\n", NIN_VERSION>>16, NIN_VERSION&0xFFFF );
+				dbgprintf("Version : %s\r\n", NIN_GIT_VERSION);
 			}
 		}
 			
@@ -354,8 +353,7 @@ int dbgprintf( const char *fmt, ...)
 		}
 	}
 
-	if( !IsWiiU() ) // usbgecko?
-		svc_write(buffer);
+	svc_write(buffer);
 	//heap_free( 0, buffer );
 #endif
 

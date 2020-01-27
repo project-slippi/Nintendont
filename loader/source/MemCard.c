@@ -63,7 +63,7 @@ static void doChecksum(const u16 *buffer, u32 size, u16 *c1, u16 *c2)
 static void showProgress(unsigned int written, unsigned int total)
 {
 	ClearScreen();
-	PrintInfo();
+	PrintBuildInfo();
 
 	char buf[128];
 	int len, x;

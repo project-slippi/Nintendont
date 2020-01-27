@@ -132,15 +132,12 @@ void FPAD_Update( void )
 		PAD_Stick_Y |= Pad[i].stickY;
 		PAD_Stick_X |= Pad[i].stickX;
 	}
-	if(!IsWiiU())
+	PAD_ScanPads();
+	for(i = 0; i < PAD_CHANMAX; ++i)
 	{
-		PAD_ScanPads();
-		for(i = 0; i < PAD_CHANMAX; ++i)
-		{
-			PAD_Pressed |= PAD_ButtonsDown(i) | PAD_ButtonsHeld(i);
-			PAD_Stick_Y |= PAD_StickY(i);
-			PAD_Stick_X |= PAD_StickX(i);
-		}
+		PAD_Pressed |= PAD_ButtonsDown(i) | PAD_ButtonsHeld(i);
+		PAD_Stick_Y |= PAD_StickY(i);
+		PAD_Stick_X |= PAD_StickX(i);
 	}
 	if( WPAD_Pressed == 0 && PAD_Pressed == 0 && WiiDRC_Pressed == 0 && ( PAD_Stick_Y < 25 && PAD_Stick_Y > -25 )  && ( PAD_Stick_X < 25 && PAD_Stick_X > -25 ) )
 	{
@@ -173,6 +170,8 @@ bool FPAD_Up( bool ILock )
 	}
 	return false;
 }
+
+
 
 bool FPAD_Down( bool ILock )
 {
@@ -276,13 +275,30 @@ bool FPAD_Start( bool ILock )
 	return false;
 }
 
-inline void Screenshot(void) {
-	if ((WPAD_Pressed == (WPAD_BUTTON_PLUS|WPAD_BUTTON_MINUS)) || (WiiDRC_Pressed == (WIIDRC_BUTTON_PLUS|WIIDRC_BUTTON_MINUS))) {
-		#ifdef SCREENSHOT
-		gprintf("Screenshot %s\r\n", GRRLIB_ScrShot("Screenshot.png") ? "taken" : "failed");
-		#else
-		gprintf("Screenshot function disabled\r\n");
-		usleep(200000);
-		#endif
+bool FPAD_RTrigger( bool ILock )
+{
+	if( !ILock && SLock ) return false;
+
+	// TODO: Add handlers for other controllers
+	if( PAD_Pressed & PAD_TRIGGER_R )
+	{
+		Repeat = 0;
+		SLock = true;
+		return true;
 	}
+	return false;
+}
+
+bool FPAD_LTrigger( bool ILock )
+{
+	if( !ILock && SLock ) return false;
+
+	// TODO: Add handlers for other controllers
+	if( PAD_Pressed & PAD_TRIGGER_L )
+	{
+		Repeat = 0;
+		SLock = true;
+		return true;
+	}
+	return false;
 }

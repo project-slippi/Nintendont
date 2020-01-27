@@ -23,11 +23,11 @@ void _main()
 {
 	//Just a jump at this location to our set entry
 	void *threadVirt = 0;
+
 	if(*(volatile unsigned int*)0x20109740 == 0xE59F1004)
 		threadVirt = (void*)0x20109740; //Address on Wii 
-	else if(*(volatile unsigned int*)0x2010999C == 0xE59F1004)
-		threadVirt = (void*)0x2010999C; //Address on WiiU
-	//Will be used by threadVirt
+
+	// Will be used by threadVirt
 	*(volatile unsigned int*)0x12FFFFE0 = 0x12F00000; //Nintendont Entry
 	sync_after_write((void*)0x12FFFFE0, 0x20);
 	//Start Thread
