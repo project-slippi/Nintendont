@@ -1410,7 +1410,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 
 		// Custom Cheats
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 50, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Custom Cheats/GCT", (ncfg->Config & (NIN_CFG_BIT_CHEATS)) ? "Yes" : "No ");
+				"%-18s:%-4s", "Custom Cheats/GCT", (ncfg->Config & (NIN_CFG_CHEATS)) ? "Yes" : "No ");
 		ListLoopIndex += 2;
 
 		PrintFormat(14, DARK_BLUE, MENU_POS_X + 50, SettingY(ListLoopIndex), "MELEE CODES");
