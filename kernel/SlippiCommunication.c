@@ -2,6 +2,7 @@
 #include "SlippiNetwork.h"
 
 #include "ubj/ubj.h"
+#include "../common/include/NintendontVersion.h"
 
 #include "string.h"
 #include "debug.h"
@@ -109,7 +110,7 @@ SlippiCommMsg genHandshakeMsg(u32 token, u64 readPos)
 	ubjw_write_key(ctx, "nick");
 	ubjw_write_string(ctx, slippi_settings->nickname);
 	ubjw_write_key(ctx, "nintendontVersion");
-	ubjw_write_string(ctx, NIN_GIT_VERSION);
+	ubjw_write_string(ctx, NIN_VERSION);
 	ubjw_write_key(ctx, "clientToken");
 	ubjw_write_buffer(ctx, (u8*)&token, UBJ_UINT8, 4);
 	ubjw_write_key(ctx, "pos");

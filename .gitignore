@@ -16,3 +16,4 @@ codehandler/*.h
 kernel/gecko/*.h
 kernel/bin2h/bin2h
 loader/*.lnk
+loader/wiiload.exe
