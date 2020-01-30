@@ -469,6 +469,7 @@ static bool PrepareSlippiNickname(void)
 
 	// Write back to slippi_settings
 	memcpy(slippi_settings->nickname, utf8string, strnlen(utf8string, 31));
+	DCFlushRange((void*)slippi_settings, sizeof(struct slippi_settings));
 
 	return true;
 }
