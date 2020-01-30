@@ -431,32 +431,44 @@ static u32 CheckForMultiGameAndRegion(unsigned int CurDICMD, u32 *ISOShift, u32 
  * Returns true if we've successfully passed a user-configured nickname.
  * Otherwise, return false if the nickname is empty.
  */
+static union {
+       WCHAR u16[512];
+       wchar_t u32[256];
+} tmpwchar;
+
 static bool PrepareSlippiNickname(void)
 {
 	// If the first byte isn't NUL, assume that the nickname was actually
 	// configured by slippi-wiiconf (we don't need to do anything else)
 	if (slippi_settings->nickname[0] != 0x00) return true;
 
-	u16 ipl_nik[11];
-	WCHAR ios_nick[10];
-	const char *utf8_nick;
-
 	// Try to get the nickname entry from SYSCONF
-	int res = CONF_Get("IPL.NIK", ipl_nik, 0x16);
+	u16 buf[11];
+	int res = CONF_Get("IPL.NIK", buf, 0x16);
 
-	// Something went wrong reading SYSCONF
-	if (res != 0x16) return false;
+	// If we don't read the whole SYSCONF entry
+	if ((res < 0) || (res != 0x16)) return false;
 
-	// FIXME: Is it possible to have a nickname of size zero?
-	// How do we deal with this?
-	//
-	// The size of the System Menu nickname is zero or out-of-bounds.
-	if ((ipl_nik[10] > 10) || (ipl_nik[10] == 0)) return false;
+	// If the first u16 in the buffer is zero
+       	if (buf[0] == 0) return false;
+
+	// If the size of the nickname is out-of-bounds
+	if ((buf[10] > 10) || (buf[10] == 0)) return false;
+
+	// Disgusting UTF16-to-UTF8 conversion?
+	static char utf8string[64];
+	wchar_t *wcptr = tmpwchar.u32;
+	WCHAR *wcs = buf;
+	int i;
+	for (i = 0; i < 64; i++) {
+		if (*wcs == 0) break;
+		*wcptr++ = *wcs++;
+	}
+	*wcptr = 0;
+	wcstombs(utf8string, tmpwchar.u32, 64);
 
 	// Write back to slippi_settings
-	memcpy(ios_nick, ipl_nik, ipl_nik[10]*2);
-	utf8_nick = wchar_to_char(ios_nick);
-	memcpy(slippi_settings->nickname, utf8_nick, strnlen(utf8_nick, 31));
+	memcpy(slippi_settings->nickname, utf8string, strnlen(utf8string, 31));
 
 	return true;
 }
