@@ -38,6 +38,10 @@ GAME_START = 0x36
 PRE_FRAME = 0x37
 POST_FRAME = 0x38
 GAME_END = 0x39
+FRAME_START = 0x3a
+ITEM_UPDATE = 0x3b
+FRAME_BOOKEND = 0x3c
+DYNAMIC_GECKO = 0x3d
 
 PAYLOADS = {}
 
@@ -116,6 +120,30 @@ while (cur < len(data)):
         cur += 1
         cur += PAYLOADS[POST_FRAME]
         continue
+
+    if data[cur] == FRAME_START:
+        print("[*] {:08x} FRAME_START message".format(cur))
+        cur += 1
+        cur += PAYLOADS[FRAME_START]
+        continue
+    if data[cur] == ITEM_UPDATE:
+        print("[*] {:08x} ITEM_UPDATE message".format(cur))
+        cur += 1
+        cur += PAYLOADS[ITEM_UPDATE]
+        continue
+    if data[cur] == FRAME_BOOKEND:
+        print("[*] {:08x} FRAME_BOOKEND message".format(cur))
+        cur += 1
+        cur += PAYLOADS[FRAME_BOOKEND]
+        continue
+    if data[cur] == DYNAMIC_GECKO:
+        print("[*] {:08x} DYNAMIC_GECKO message".format(cur))
+        cur += 1
+        cur += PAYLOADS[DYNAMIC_GECKO]
+        continue
+
+
+
 
     # GAME_END
     if data[cur] == GAME_END:
