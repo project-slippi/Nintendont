@@ -797,9 +797,7 @@ void DIUpdateRegisters( void )
 			} break;
 			case 0xF9:
 			{
-				#ifdef PATCHALL
 				BTInit();
-				#endif
 				DIOK = 1;
 			} break;
 		}
