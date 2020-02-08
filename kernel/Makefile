@@ -118,4 +118,4 @@ $(TARGET): $(GECKO_H) $(COMMON_CFG) kernel.ld $(OBJECTS)
 
 clean:
 	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d *.map lwbt/*.d lwbt/*.o option/*.d option/*.o gecko/*.h \
-		../common/config/*.o ../common/config/*.d
+		../common/config/*.o ../common/config/*.d ubj/*.o ubj/*.d

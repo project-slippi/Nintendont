@@ -55,4 +55,4 @@ $(OUTPUT): $(OBJECTS)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -c -MMD -MP -MF $(@:.o=.d) -o $@ $<
 
 clean:
-	-$(RM) -f $(ZIPFILE) *.elf *.o *.bin *.d
+	-$(RM) -f $(ZIPFILE) $(BINFILE) *.elf *.o *.bin *.d
