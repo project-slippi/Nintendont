@@ -10,7 +10,7 @@
 //#define HID		1
 //#define CARDDEBUG 1
 #define AUDIOSTREAM 1
-#define PATCHALL	1
+//#define PATCHALL	1
 //#define PERFMON 1
 #define TRI_DI_PATCH 1
 

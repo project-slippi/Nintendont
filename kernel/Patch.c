@@ -50,7 +50,11 @@ u32 TITLE_ID = 0;
 #define PATCH_OFFSET_ENTRY PATCH_OFFSET_START - FakeEntryLoad_size
 static u32 POffset = PATCH_OFFSET_ENTRY;
 vu32 useipl = 0, useipltri = 0;
-vu32 DisableSIPatch = 0, DisableEXIPatch = 0;
+
+// Always disable SI patches (always use native SI)
+vu32 DisableSIPatch = 1;
+vu32 DisableEXIPatch = 0;
+
 extern vu32 TRIGame;
 
 #define PRS_DOL     0x131C0000
@@ -1656,8 +1660,6 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 	}
 	DisableEXIPatch = false;
 
-	// Always disable SI patches (always use native SI)
-	DisableSIPatch = true;
 
 	bool PatchWide = ConfigGetConfig(NIN_CFG_FORCE_WIDE);
 	if(PatchWide && PatchStaticWidescreen(TITLE_ID, GAME_ID & 0xFF)) //if further patching is needed

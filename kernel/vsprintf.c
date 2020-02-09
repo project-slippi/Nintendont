@@ -20,44 +20,14 @@ extern s32 debug_sock;
 extern s32 top_fd;
 #endif
 
-static FIL dbgfile;
-static int file_opened = -1;
-vu32 SDisInit=0;
-
 extern int svc_write(char *buffer);
 
-static inline int isdigit(int c)
-{
-	return c >= '0' && c <= '9';
-}
+// Global variable set in kernel/main.c after reading the config
+extern vu32 sdhc_log_enabled;
 
-static inline int isxdigit(int c)
-{
-	return (c >= '0' && c <= '9')
-	    || (c >= 'a' && c <= 'f')
-	    || (c >= 'A' && c <= 'F');
-}
-
-static inline int islower(int c)
-{
-	return c >= 'a' && c <= 'z';
-}
-
-static inline int toupper(int c)
-{
-	if (islower(c))
-		c -= 'a'-'A';
-	return c;
-}
-
-static int skip_atoi(const char **s)
-{
-	int i=0;
-
-	while (isdigit(**s))
-		i = i*10 + *((*s)++) - '0';
-	return i;
-}
+// Handle to the log file on the SD card
+static FIL sdhc_log;
+static int sdhc_log_status = -1;
 
 #define ZEROPAD	1		/* pad with zero */
 #define SIGN	2		/* unsigned/signed long */
@@ -68,13 +38,37 @@ static int skip_atoi(const char **s)
 #define LARGE	64		/* use 'ABCDEF' instead of 'abcdef' */
 
 #define do_div(n,base) ({ \
-int __res; \
-__res = ((unsigned long) n) % (unsigned) base; \
-n = ((unsigned long) n) / (unsigned) base; \
-__res; })
+	int __res; \
+	__res = ((unsigned long) n) % (unsigned) base; \
+	n = ((unsigned long) n) / (unsigned) base; \
+	__res; \
+})
 
-static char * number(char * str, long num, int base, int size, int precision
-	,int type)
+static inline int isdigit(int c) { return c >= '0' && c <= '9'; }
+static inline int islower(int c) { return c >= 'a' && c <= 'z'; }
+static inline int isxdigit(int c)
+{
+	return (c >= '0' && c <= '9')
+	    || (c >= 'a' && c <= 'f')
+	    || (c >= 'A' && c <= 'F');
+}
+static inline int toupper(int c)
+{
+	if (islower(c))
+		c -= 'a'-'A';
+	return c;
+}
+static int skip_atoi(const char **s)
+{
+	int i=0;
+
+	while (isdigit(**s))
+		i = i*10 + *((*s)++) - '0';
+	return i;
+}
+
+
+static char *number(char *str, long num, int base, int size, int precision, int type)
 {
 	char c,sign,tmp[66];
 	const char *digits="0123456789abcdefghijklmnopqrstuvwxyz";
@@ -304,73 +298,103 @@ int _vsprintf(char *buf, const char *fmt, va_list args)
 	return str-buf;
 }
 
+
+
+/* dbgprintf()
+ * Emit a log message to some I/O device depending on the configuration.
+ * Logging to a USB Gecko is ALWAYS enabled during the boot process.
+ */
+extern u32 early_gecko_logging; 
+extern u32 slippi_use_port_a;
 int dbgprintf( const char *fmt, ...)
 {
-	va_list args;
+	// If no logging is enabled, do nothing.
+	bool enable = (sdhc_log_enabled || slippi_use_port_a || early_gecko_logging);
+	if (enable == false)
+		return 0;
 
-	if ( (*(vu32*)(0xd800070) & 1) == 0)
-		return -1;
-	
-	//char *buffer = (char*)heap_alloc_aligned( 0, 2048, 32 );	
-	char buffer[0x100]; //get from stack
+	// Otherwise, regardless of HOW we're logging, we always need to call
+	// _vsprintf() to render our message into this buffer on the stack.
+
+	u32 num_bytes;	
+	va_list args;
+	char buffer[0x100];
 
 	va_start(args, fmt);
 	_vsprintf(buffer, fmt, args);
 	va_end(args);
 
+	// If the user is logging to a USB Gecko, verify that the EXI bit in
+	// EXICTRL/SRNPROT is enabled, then do the semihosting write.
 
-/* NOTE: When SLIPPI_DEBUG is set, ignore writes to the log on SD card in an
- * attempt to make things more reliable for us. Also, like with writes to the
- * SD card, the caller will spend extra time on-CPU blocking until sendto() is
- * finished. Consider passing a message or buffering up data in another thread
- * instead of blocking the caller!
- */
-
-#ifdef SLIPPI_DEBUG
-	if ((top_fd > 0) && (debug_sock > 0))
-		sendto(top_fd, debug_sock, buffer, strlen(buffer), 0);
-#else
-	u32 read;	
-	if( SDisInit )
+	if (early_gecko_logging || slippi_use_port_a)
 	{
-		if(file_opened != FR_OK)	//if log not open yet
-		{
-			file_opened = f_open_main_drive(&dbgfile, "/slippi_ndebug.log", FA_OPEN_ALWAYS|FA_WRITE);
-
-			if (file_opened == FR_OK)	//new log opened write header
-			{
-				u32 v = read32(0x3140);
-				dbgprintf("Nintendont IOS%d v%d.%d\r\n", v >> 16, (v >> 8) & 0xff, v & 0xff);
-				dbgprintf("Built   : %s %s\r\n", __DATE__, __TIME__ );
-				dbgprintf("Version : %s\r\n", NIN_GIT_VERSION);
-			}
-		}
-			
-		if (file_opened == FR_OK) {
-			f_lseek(&dbgfile, dbgfile.obj.objsize);
-			f_write(&dbgfile, buffer, strlen(buffer), &read);
-			f_sync(&dbgfile);
-		}
+		if ((*(vu32*)(0x0d800070) & 1) == 1) 
+			svc_write(buffer);
 	}
 
-	svc_write(buffer);
-	//heap_free( 0, buffer );
+	// Regardless of whether or not we're using SD/EXI for logging, 
+	// conditionally compile in this code when SLIPPI_DEBUG is defined.
+	// Note that the call will spend extra time on-CPU blocking for this.
+	// A nicer solution would probably buffer up data and wait for another
+	// thread to send the message (if timing isn't especially critical).
+
+#ifdef SLIPPI_DEBUG
+	if ((top_fd > 0) && (debug_sock > 0)) 
+		sendto(top_fd, debug_sock, buffer, strlen(buffer), 0);
 #endif
+
+	// Deal with writes to SD card
+
+	if ((sdhc_log_enabled == 1) && (sdhc_log_status == FR_OK))
+	{
+		f_lseek(&sdhc_log, sdhc_log.obj.objsize);
+		f_write(&sdhc_log, buffer, strlen(buffer), &num_bytes);
+		f_sync(&sdhc_log);
+	}
 
 	return 0;
 }
-void closeLog(void)
+
+/* sdhc_log_init()
+ * Called from _main() on boot when logging to SD card is enabled.
+ * We only do this once so, if something weird happens during runtime and
+ * we can't write, we're probably SOL.
+ */
+int sdhc_log_init()
 {
-	if(file_opened == FR_OK)
+	sdhc_log_status = f_open_main_drive(&sdhc_log, 
+		"/slippi_ndebug.log", FA_OPEN_ALWAYS | FA_WRITE);
+
+	if (sdhc_log_status != FR_OK)
+		return -1;
+
+	// Write a header to the log file
+	u32 v = read32(0x3140);
+	dbgprintf("Nintendont IOS%d v%d.%d\r\n", 
+		v >> 16, (v >> 8) & 0xff, v & 0xff);
+	dbgprintf("Built   : %s %s\r\n", __DATE__, __TIME__ );
+	dbgprintf("Version : %s\r\n", NIN_GIT_VERSION);
+
+	dbgprintf("Game path: %s\r\n", ConfigGetGamePath());
+	return 0;
+}
+
+/* sdhc_log_destroy()
+ * Called during shutdown - closes the log file. 
+ */
+void sdhc_log_destroy(void)
+{
+	if (sdhc_log_status == FR_OK)
 	{
-		file_opened = -1;
-		f_close(&dbgfile);
+		sdhc_log_status = -1;
+		f_close(&sdhc_log);
 	}
 }
+
 void CheckOSReport(void)
 {
 	sync_before_read((void*)0x13160000, 0x8);
-
 	u32 Length = read32(0x13160004);
 	if (Length != 0x0)
 	{

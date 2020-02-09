@@ -54,41 +54,57 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "SDI.h"
 #include "ff_utf8.h"
 
-//#define USE_OSREPORTDM 1
-
-//#undef DEBUG
-bool access_led = false;
-u32 USBReadTimer = 0;
-extern u32 s_size;
-extern u32 s_cnt;
-
-/** Device mount/unmount. **/
-// 0 == SD, 1 == USB
-static FATFS *devices[2];
-
-//this is just a single / as u16, easier to write in hex
-static const WCHAR fatSdName[] = {'s', 'd', ':', 0};
-static const WCHAR fatUsbName[] = {'u', 's', 'b', ':', 0};
-
-extern u32 SI_IRQ;
-extern bool DI_IRQ, EXI_IRQ;
-extern u32 WaitForRealDisc;
-extern struct ipcmessage DI_CallbackMsg;
-extern u32 DI_MessageQueue;
-extern vu32 DisableSIPatch;
+// BSS/stack geometry from the linkerscript
 extern char __bss_start, __bss_end;
 extern char __di_stack_addr, __di_stack_size;
 
-u32 virtentry = 0;
-u32 drcAddress = 0;
-u32 drcAddressAligned = 0;
-bool wiiVCInternal = false;
+// References to USB sector size and sector count
+extern u32 s_size;
+extern u32 s_cnt;
 
 // Global state for network connectivity, from kernel/net.c
 extern u32 NetworkStarted;
 
 // Server status, from kernel/SlippiNetwork.c
 extern u32 SlippiServerStarted;
+
+// Interrupt requests
+extern u32 SI_IRQ;
+extern bool DI_IRQ;
+extern bool EXI_IRQ;
+
+// DI thread state
+extern u32 WaitForRealDisc;
+extern struct ipcmessage DI_CallbackMsg;
+extern u32 DI_MessageQueue;
+
+// Used for storage device [un]mounting (0 == SD, 1 == USB)
+static FATFS *devices[2];
+
+// Device names
+static const WCHAR fatSdName[] = {'s', 'd', ':', 0};
+static const WCHAR fatUsbName[] = {'u', 's', 'b', ':', 0};
+
+// Some state for timing reads on the USB drive
+u32 USBReadTimer = 0;
+
+// Globals related to WiiU/WiiVC compatibility
+u32 virtentry = 0;
+u32 drcAddress = 0;
+u32 drcAddressAligned = 0;
+bool wiiVCInternal = false;
+
+// Unconditionally enable logging with the semihosting write during boot-time.
+// Set this flag to 0 after reading the Slippi configuration file in order to
+// determine whether or not we should continue logging to EXI during runtime.
+u32 early_gecko_logging = 1;
+
+// Some globals for settings we read from the configuration file
+u32 slippi_use_port_a = 0;
+bool access_led = false;
+vu32 sdhc_log_enabled = 0;
+
+// ----------------------------------------------------------------------------
 
 // The kernel entrypoint
 int _main( int argc, char *argv[] )
@@ -302,7 +318,6 @@ int _main( int argc, char *argv[] )
 		SlippiNetworkBroadcastInit();
 	}
 
-
 /* CONFIG_INIT BOOT STAGE
  * Double check that we've read a copy of the Nintendont config into memory
  * (this should be handled by the loader). If it doesn't exist, read it into 
@@ -311,9 +326,23 @@ int _main( int argc, char *argv[] )
 	BootStatus(CONFIG_INIT, s_size, s_cnt);
 	ConfigInit();
 
+	access_led = ConfigGetConfig(NIN_CFG_LED);
+
+	if (ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A))
+		slippi_use_port_a = 1;
+
 	if (ConfigGetConfig(NIN_CFG_LOG))
-		SDisInit = 1;  // Looks okay after threading fix
-	dbgprintf("Game path: %s\r\n", ConfigGetGamePath());
+	{
+		sdhc_log_enabled = 1;  
+		if (sdhc_log_init() == -1)
+			dbgprintf("Couldn't initialize SD card log!\r\n");
+	}
+	
+	// Stop automatically emitting logs to EXI by default. From now on,
+	// we will only send log messages on the EXI bus if we've determined
+	// that the user has set the NIN_CFG_SLIPPI_PORT_A configuration bit
+	early_gecko_logging = 0;
+
 
 /* BOOT_STATUS_8 BOOT STAGE
  * I don't know what this does. Clears out these regions in memory?
@@ -386,46 +415,42 @@ int _main( int argc, char *argv[] )
 	dbgprintf("Kernel Start\r\n");
 	dbgprintf("Main Thread ID: %d\r\n", thread_get_id());
 
-#ifdef USE_OSREPORTDM
-	write32( 0x1860, 0xdeadbeef );	// Clear OSReport area
-	sync_after_write((void*)0x1860, 0x20);
-#endif
-
 	u32 Now = read32(HW_TIMER);
 	u32 PADTimer = Now;
 	u32 DiscChangeTimer = Now;
 	u32 ResetTimer = Now;
 	u32 InterruptTimer = Now;
 
-#ifdef PERFMON
-	u32 loopCnt = 0;
-	u32 loopPrintTimer = Now;
-#endif
-
 	USBReadTimer = Now;
 	u32 Reset = 0;
 	bool SaveCard = false;
 
-	//enable ios led use
-	access_led = ConfigGetConfig(NIN_CFG_LED);
-	if(access_led)
+	if (access_led)
 	{
 		set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
 		clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
 		clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
 	}
 
+	// Enable the sensor bar (?)
 	set32(HW_GPIO_ENABLE, GPIO_SENSOR_BAR);
 	clear32(HW_GPIO_DIR, GPIO_SENSOR_BAR);
 	clear32(HW_GPIO_OWNER, GPIO_SENSOR_BAR);
-	set32(HW_GPIO_OUT, GPIO_SENSOR_BAR);	//turn on sensor bar
+	set32(HW_GPIO_OUT, GPIO_SENSOR_BAR);
 
-	clear32(HW_GPIO_OWNER, GPIO_POWER); //take back power button
+	// Remove PPC ownership of the power button GPIO pin
+	clear32(HW_GPIO_OWNER, GPIO_POWER);
 
-	write32( HW_PPCIRQMASK, (1<<30) ); //only allow IPC IRQ
+	// Only enable Starlet IRQ interrupts for Broadway IPC.
+	// Then, reset all pending IRQ bits.
+	write32( HW_PPCIRQMASK, (1<<30) );
 	write32( HW_PPCIRQFLAG, read32(HW_PPCIRQFLAG) );
 
-	//This bit seems to be different on japanese consoles
+	// NOTE: 
+	// I have absolutely no idea what this does.
+	// MIOS seems to write this register. ~meta
+
+	// This bit seems to be different on japanese consoles
 	u32 ori_ppcspeed = read32(HW_PPCSPEED);
 	switch (BI2region)
 	{
@@ -448,18 +473,8 @@ int _main( int argc, char *argv[] )
 	{
 		_ahbMemFlush(0);
 
-#ifdef PERFMON
-		loopCnt++;
-		if(TimerDiffTicks(loopPrintTimer) > 1898437)
-		{
-			dbgprintf("%08i\r\n",loopCnt);
-			loopPrintTimer = read32(HW_TIMER);
-			loopCnt = 0;
-		}
-#endif
-
 		//Does interrupts again if needed
-		if(TimerDiffTicks(InterruptTimer) > 15820) //about 120 times a second
+		if (TimerDiffTicks(InterruptTimer) > 15820) //about 120 times a second
 		{
 			sync_before_read((void*)INT_BASE, 0x80);
 			if((read32(RSW_INT) & 2) || (read32(DI_INT) & 4) || 
@@ -468,13 +483,11 @@ int _main( int argc, char *argv[] )
 			InterruptTimer = read32(HW_TIMER);
 		}
 
-#ifdef PATCHALL
 		if (EXI_IRQ == true)
 		{
 			if(EXICheckTimer())
 				EXIInterrupt();
 		}
-#endif
 
 		if (SI_IRQ != 0)
 		{
@@ -485,14 +498,15 @@ int _main( int argc, char *argv[] )
 				PADTimer = read32(HW_TIMER);
 			}
 		}
-		if(DI_IRQ == true)
+
+		if (DI_IRQ == true)
 		{
 			if(DiscCheckAsync())
 				DIInterrupt();
 			else
 				udelay(200); //let the driver load data
 		}
-		else if(SaveCard == true) /* DI IRQ indicates we might read async, so dont write at the same time */
+		else if (SaveCard == true) /* DI IRQ indicates we might read async, so dont write at the same time */
 		{
 			if(TimerDiffSeconds(Now) > 2) /* after 3 second earliest */
 			{
@@ -500,7 +514,6 @@ int _main( int argc, char *argv[] )
 				SaveCard = false;
 			}
 		}
-
 		else if(UseUSB && TimerDiffSeconds(USBReadTimer) > 149) /* Read random sector every 2 mins 30 secs */
 		{
 			DIFinishAsync(); //if something is still running
@@ -510,8 +523,12 @@ int _main( int argc, char *argv[] )
 			DIFinishAsync();
 			USBReadTimer = read32(HW_TIMER);
 		}
-		else /* No device I/O so make sure this stays updated */
+		else 
+		{
+			// No device I/O so make sure this stays updated
 			GetCurrentTime();
+		}
+
 		udelay(20); //wait for other threads
 
 		if( WaitForRealDisc == 1 )
@@ -555,15 +572,18 @@ int _main( int argc, char *argv[] )
 				DiscChangeIRQ = 0;
 			}
 		}
+
 		_ahbMemFlush(1);
 		DIUpdateRegisters();
-		#ifdef PATCHALL
+
 		EXIUpdateRegistersNEW();
 		GCAMUpdateRegisters();
 		BTUpdateRegisters();
 		HIDUpdateRegisters(0);
-		if(DisableSIPatch == 0) SIUpdateRegisters();
-		#endif
+
+		// Native SI is always enabled in Slippi Nintendont
+		//if (DisableSIPatch == 0) SIUpdateRegisters();
+
 		StreamUpdateRegisters();
 		CheckOSReport();
 		if(GCNCard_CheckChanges())
@@ -623,33 +643,13 @@ int _main( int argc, char *argv[] )
 		if(reset_status == 0x7DEA || (read32(HW_GPIO_IN) & GPIO_POWER))
 		{
 			DIFinishAsync();
-			#ifdef PATCHALL
 			BTE_Shutdown();
-			#endif
 			Shutdown();
 		}
 
-#ifdef USE_OSREPORTDM
-		sync_before_read( (void*)0x1860, 0x20 );
-		if( read32(0x1860) != 0xdeadbeef )
-		{
-			if( read32(0x1860) != 0 )
-			{
-				dbgprintf(	(char*)(P2C(read32(0x1860))),
-							(char*)(P2C(read32(0x1864))),
-							(char*)(P2C(read32(0x1868))),
-							(char*)(P2C(read32(0x186C))),
-							(char*)(P2C(read32(0x1870))),
-							(char*)(P2C(read32(0x1874)))
-						);
-			}
-			write32(0x1860, 0xdeadbeef);
-			sync_after_write( (void*)0x1860, 0x20 );
-		}
-#endif
-
 		cc_ahbMemFlush(1);
 	}
+
 	HIDClose();
 	IOS_Close(DI_Handle); //close game
 	thread_cancel(DI_Thread, 0);
@@ -662,11 +662,9 @@ int _main( int argc, char *argv[] )
 	SlippiFileWriterShutdown();
 
 	if (ConfigGetConfig(NIN_CFG_LOG))
-		closeLog();
+		sdhc_log_destroy();
 
-#ifdef PATCHALL
 	BTE_Shutdown();
-#endif
 
 	// unmount SD card
 	if (shouldBootSd)

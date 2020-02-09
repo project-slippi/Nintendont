@@ -34,14 +34,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "ff_utf8.h"
 
-#define EXI_IRQ_INSTANT		0		// as soon as possible
+#define EXI_IRQ_INSTANT		0	// as soon as possible
 #define EXI_IRQ_DEFAULT		1900	// about 1000 times a second
 #define EXI_IRQ_SLOW		3800	// about 500 times a second
 
-static u32 CurrentTiming = EXI_IRQ_DEFAULT;
-
 extern vu32 useipl;
-static bool exi_inited = false;
+extern vu32 TRIGame;
+extern u32 arcadeMode;
+extern u32 slippi_use_port_a;
 
 // EXI device selection. (per channel)
 // idx 3 provided to prevent overflows.
@@ -55,11 +55,15 @@ static u8 EXICommand[4] = {0, 0, 0, 0};
 // idx 3 is provided to prevent overflows.
 static u32 IRQ_Cause[4] = {0, 0, 0, 0};
 
+static bool TRIGameStarted = false;
 static u32 SRAMWriteCount = 0;
 static u8 *const FontBuf = (u8*)(0x13100000);
 static u32 IPLReadOffset;
-bool EXI_IRQ = false;
 static u32 IRQ_Timer = 0;
+static u32 CurrentTiming = EXI_IRQ_DEFAULT;
+static bool exi_inited = false;
+
+bool EXI_IRQ = false;
 
 // EXI devices.
 // Low 2 bits: Device number. (0-2)
@@ -108,22 +112,19 @@ enum EXICommands
 	IPL_READ_FONT,
 };
 
-extern vu32 TRIGame;
 static u32 TRIBackupOffset= 0;
 static u32 EXI2IRQ			= 0;
 static u32 EXI2IRQStatus	= 0;
 
 static u8 *ambbBackupMem;
 
-static u32 Slippi_UsePortA = 0;
 
 void EXIInit(void)
 {
 	dbgprintf("EXIInit Start\r\n");
 	dbgprintf("This should work stream!\r\n");
-
-	Slippi_UsePortA = ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A);
-	dbgprintf("Slippi use port A: %d\r\n", Slippi_UsePortA);
+	if (slippi_use_port_a)
+		dbgprintf("Slippi is enabled on port A\r\n");
 
 	//some important memory for triforce
 	ambbBackupMem = malloca(0x10000, 0x40);
@@ -152,8 +153,6 @@ void EXIInit(void)
 			GCNCard_Load(1);
 	}
 }
-
-extern vu32 TRIGame;
 
 /**
  * Set EXI timings based on the game ID.
@@ -803,7 +802,7 @@ void EXIUpdateRegistersNEW( void )
 				{
 					case EXI_DEV_MEMCARD_A:
 
-						if (Slippi_UsePortA && mode == 1) {
+						if (slippi_use_port_a && mode == 1) {
 							// Write data received by DMA to SlippiMemory
 							// Sync is necessary because data was written from PPC
 							sync_before_read((void *)ptr, len);
@@ -839,7 +838,7 @@ void EXIUpdateRegistersNEW( void )
 #ifdef GCNCARD_ENABLE_SLOT_B
 					case EXI_DEV_MEMCARD_B:
 
-						if (!Slippi_UsePortA && mode == 1) {
+						if (!slippi_use_port_a && mode == 1) {
 							// Write data received by DMA to SlippiMemory
 							// Sync is necessary because data was written from PPC
 							sync_before_read((void *)ptr, len);
@@ -921,8 +920,6 @@ static const unsigned int sb311block[54] =
     0xFFFF0000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 };
 
-extern u32 arcadeMode;
-static bool TRIGameStarted = false;
 //make sure ambbBackupMem is filled correctly
 void EXIPrepareTRIGameStart()
 {
