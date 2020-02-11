@@ -62,6 +62,24 @@ distribution.
 static const char __ven_path[] __attribute__((aligned(32))) = "/dev/usb/ven";
 static s32 ven_fd = -1;
 
+typedef struct _usb_cb_list {
+	usbcallback cb;
+	void *userdata;
+	union {
+		s32 device_id;
+		struct _usb_cb_list *next;
+	};
+} _usb_cb_list;
+
+struct _usbv5_host {
+	usb_device_entry attached_devices[USB_MAX_DEVICES];
+	_usb_cb_list remove_cb[USB_MAX_DEVICES];
+	s32 fd;
+	_usb_cb_list *device_change_notify;
+};
+
+static struct _usbv5_host* ven_host = NULL;
+
 static s32 __usb_control_message(s32 device_id,u8 bmRequestType,u8 bmRequest,u16 wValue,u16 wIndex,u16 wLength,void *rpData)
 {
 	struct _usb_msg msg ALIGNED(32); //use aligned stack instead of mem alloc
@@ -121,6 +139,9 @@ s32 USB_Initialize()
 {
 	if (ven_fd < 0)
 		ven_fd = IOS_Open(__ven_path, IPC_OPEN_NONE);
+
+	ven_host = (struct _usbv5_host*)iosAlloc(hId, sizeof(*ven_host));
+	IOS_IoctlAsync(ven_fd, USBV5_IOCTL_GETDEVICECHANGE, NULL, 0, ven_host->attached_devices, 0x180, __usbv5_devicechangeCB, ven_host);
 
 	return IPC_OK;
 }

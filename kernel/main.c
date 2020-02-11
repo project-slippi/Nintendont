@@ -371,7 +371,10 @@ int _main( int argc, char *argv[] )
 	// If we are using USB for writting slp files and USB is not the
 	// primary device, initialize the file writer
 	if (SlippiFileWrite == 1)
-		SlippiFileWriterInit();
+	{
+		u8 writeDriveIndex = UseUSB ? 0 : 1;
+		SlippiFileWriterInit(devices[writeDriveIndex], (WCHAR*)(UseUSB ? fatSdName : fatUsbName));
+	}
 
 /* KERNEL_RUNNING BOOT STAGE
  * Signal the loader to start booting a game in PPC-world.

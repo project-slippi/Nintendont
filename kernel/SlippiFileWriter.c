@@ -3,7 +3,7 @@
 #include "alloc.h"
 #include "debug.h"
 #include "string.h"
-#include "ff_utf8.h"
+#include "usbstorage.h"
 
 #include "Config.h"
 
@@ -25,14 +25,21 @@ extern char __slippi_stack_addr, __slippi_stack_size;
 static u32 fileIndex = 1;
 extern u8 wifi_mac_address[6]; // Used to identify replays
 
+FATFS *writeDevice;
+WCHAR *writeName;
+
 // File object
 FIL currentFile;
+char *currentFileName;
 
 // vars for metadata generation
 u32 gameStartTime;
 
-void SlippiFileWriterInit()
+void SlippiFileWriterInit(FATFS *device, WCHAR *name)
 {
+	writeDevice = device;
+	writeName = name;
+	
 	Slippi_Thread = do_thread_create(
 		SlippiHandlerThread,
 		((u32 *)&__slippi_stack_addr),
@@ -159,6 +166,27 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	f_sync(file);
 }
 
+void reconnectFileWriteDrive(FIL *file, FRESULT errNo)
+{
+	dbgprintf("Slippi: error writing to file. errno: %d\r\n", errNo);
+
+	// FRESULT closeResult = f_close(file);
+	// dbgprintf("Slippi: close result: %d\r\n", closeResult);
+
+	// FRESULT unmountResult = f_mount(NULL, writeName, 1);
+	// dbgprintf("Slippi: unmount result: %d\r\n", unmountResult);
+
+	USBStorage_Shutdown();
+
+	int ret = USBStorage_Startup();
+	dbgprintf("Slippi: USB Startup: %d\r\n", ret);
+
+	FRESULT mountResult = f_mount(writeDevice, writeName, 1);
+	dbgprintf("Slippi: mount result: %d\r\n", mountResult);
+
+	mdelay(2000);
+}
+
 static u32 SlippiHandlerThread(void *arg)
 {
 	dbgprintf("Slippi Thread ID: %d\r\n", thread_get_id());
@@ -195,13 +223,13 @@ static u32 SlippiHandlerThread(void *arg)
 			gameStartTime = GetCurrentTime();
 
 			dbgprintf("Creating File...\r\n");
-			char *fileName = generateFileName(true);
+			currentFileName = generateFileName(true);
 			// Need to open with FA_READ if network thread is going to share &currentFile
-			FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
+			FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, currentFileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
 			if (fileOpenResult != FR_OK)
 			{
-				dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", fileName, fileOpenResult);
-				mdelay(1000);
+				dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", currentFileName, fileOpenResult);
+				reconnectFileWriteDrive(&currentFile, fileOpenResult);
 				continue;
 			}
 
@@ -213,11 +241,25 @@ static u32 SlippiHandlerThread(void *arg)
 		if (reader.lastReadResult.bytesRead == 0)
 			continue;
 
+		if (f_error(&currentFile))
+		{
+			FRESULT reopenResult = f_open_secondary_drive(&currentFile, currentFileName, FA_OPEN_APPEND | FA_WRITE | FA_READ);
+			if (reopenResult != FR_OK)
+			{
+				dbgprintf("Slippi: failed to re-open file: %s, errno: %d\r\n", currentFileName, reopenResult);
+				reconnectFileWriteDrive(&currentFile, reopenResult);
+				continue;
+			}
+		}
+
 		// dbgprintf("Bytes read: %d\r\n", reader.lastReadResult.bytesRead);
 
 		UINT wrote;
-		f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
-		f_sync(&currentFile);
+		FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
+		if (writeResult != FR_OK) reconnectFileWriteDrive(&currentFile, writeResult);
+
+		FRESULT syncResult = f_sync(&currentFile);
+		if (syncResult != FR_OK) reconnectFileWriteDrive(&currentFile, syncResult);
 
 		if (wrote == 0)
 			continue;
