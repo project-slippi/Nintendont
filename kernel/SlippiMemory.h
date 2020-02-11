@@ -33,7 +33,7 @@ typedef struct SlpReadResult
 	u32 bytesRead;
 } SlpReadResult;
 
-#define PAYLOAD_SIZES_BUFFER_SIZE 10
+#define PAYLOAD_SIZES_BUFFER_SIZE 0x100
 
 typedef struct SlpGameReader
 {

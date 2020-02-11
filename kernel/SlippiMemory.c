@@ -236,8 +236,7 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos)
 	u8 length = payload[0];
 
 	// Indicate the length of the SLP_CMD_RECEIVE_COMMANDS payload
-	// Will always be index zero
-	reader->payloadSizes[0] = length;
+	reader->payloadSizes[SLP_CMD_RECEIVE_COMMANDS] = length;
 
 	// Each structure is three bytes (u8 command, u16 size)
 	int i = 1;
@@ -246,7 +245,7 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos)
 		// Go through the receive commands payload and set up other commands
 		u8 commandByte = payload[i];
 		u16 commandPayloadSize = payload[i + 1] << 8 | payload[i + 2];
-		reader->payloadSizes[commandByte - SLP_CMD_RECEIVE_COMMANDS] = commandPayloadSize;
+		reader->payloadSizes[commandByte] = commandPayloadSize;
 
 		// dbgprintf("Index: 0x%02X, Size: 0x%02X\r\n",
 		//	commandByte - SLP_CMD_RECEIVE_COMMANDS, commandPayloadSize);
@@ -261,7 +260,7 @@ void setPayloadSizes(SlpGameReader *reader, u32 readPos)
  */
 u16 getPayloadSize(SlpGameReader *reader, u8 command)
 {
-	int payloadSizesIndex = command - SLP_CMD_RECEIVE_COMMANDS;
+	int payloadSizesIndex = command;
 	if (payloadSizesIndex >= PAYLOAD_SIZES_BUFFER_SIZE || payloadSizesIndex < 0)
 		return 0;
 
