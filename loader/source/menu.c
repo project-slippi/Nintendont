@@ -980,7 +980,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 	if (FPAD_Down_Repeat(ctx))
 	{
 		// Down: Move the cursor down by 1 setting.
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 15, SettingY(ctx->settings.posX), " " );
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START - 20, SettingY(ctx->settings.posX), " " );
 		ctx->settings.posX++;
 
 		switch (ctx->pages.selected) {
@@ -1024,7 +1024,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 	else if (FPAD_Up_Repeat(ctx))
 	{
 		// Up: Move the cursor up by 1 setting.
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 15, SettingY(ctx->settings.posX), " " );
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START - 20, SettingY(ctx->settings.posX), " " );
 		ctx->settings.posX--;
 
 		switch (ctx->pages.selected) {
@@ -1214,8 +1214,8 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			// Blank out the memory card options if MCEMU is disabled.
 			if (!(ncfg->Config & NIN_CFG_MEMCARDEMU))
 			{
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(NIN_SETTINGS_MEMCARDBLOCKS), "%29s", "");
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(NIN_SETTINGS_MEMCARDMULTI), "%29s", "");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(NIN_SETTINGS_MEMCARDBLOCKS), "%29s", "");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(NIN_SETTINGS_MEMCARDMULTI), "%29s", "");
 			}
 			ctx->redraw = true;
 		}
@@ -1283,7 +1283,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 			if (ListLoopIndex == NIN_CFG_BIT_MEMCARDEMU)
 				item_color = GRAY;
 
-			PrintFormat(MENU_SIZE, item_color, MENU_POS_X + 35,
+			PrintFormat(MENU_SIZE, item_color, MENU_POS_X + SETTINGS_X_START,
 				SettingY(ListLoopIndex), "%-18s:%s",
 				OptionStrings[ListLoopIndex],
 				(ncfg->Config & (1 << ListLoopIndex)) ? "On " : "Off" );
@@ -1294,7 +1294,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		if (LanIndex < NIN_LAN_FIRST || LanIndex >= NIN_LAN_LAST) {
 			LanIndex = NIN_LAN_LAST; //Auto
 		}
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", OptionStrings[ListLoopIndex], LanguageStrings[LanIndex] );
 		ListLoopIndex++;
 
@@ -1320,7 +1320,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 			VideoModeIndex = NIN_VID_INDEX_AUTO;
 			break;
 		}
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-18s", OptionStrings[ListLoopIndex], VideoStrings[VideoModeIndex] );
 		ListLoopIndex++;
 
@@ -1340,7 +1340,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 				ncfg->VideoMode |= NIN_VID_FORCE_NTSC;
 				VideoModeIndex = NIN_VID_INDEX_FORCE_NTSC;
 			}
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 					"%-18s:%-5s", OptionStrings[ListLoopIndex], VideoModeStrings[VideoModeIndex] );
 		}
 		ListLoopIndex++;
@@ -1352,20 +1352,20 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 			if (MemCardBlocksVal > MEM_CARD_MAX) {
 				MemCardBlocksVal = 0;
 			}
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 					"%-18s:%-4d%s", OptionStrings[ListLoopIndex], MEM_CARD_BLOCKS(MemCardBlocksVal), MemCardBlocksVal > 2 ? "Unstable" : "");
-			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex+1),
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex+1),
 					"%-18s:%-4s", OptionStrings[ListLoopIndex+1], (ncfg->Config & (NIN_CFG_MC_MULTI)) ? "On " : "Off");
 		}
 		ListLoopIndex+=2;
 
 		// Patch PAL50.
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Patch PAL50", (ncfg->VideoMode & (NIN_VID_PATCH_PAL50)) ? "On " : "Off");
 		ListLoopIndex++;
 
 		// Skip GameCube IPL
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Skip IPL", (ncfg->Config & (NIN_CFG_SKIP_IPL)) ? "Yes" : "No ");
 		ListLoopIndex++;
 
@@ -1384,36 +1384,36 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		}
 		snprintf(vidOffset, sizeof(vidOffset), "%i", ncfg->VideoOffset);
 
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Video Width", vidWidth);
 		ListLoopIndex++;
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Screen Position", vidOffset);
 		ListLoopIndex++;
 	} 
 	else 
 	{
 		// Networking
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Slippi Networking", (ncfg->Config & (NIN_CFG_NETWORK)) ? "Yes" : "No ");
 		ListLoopIndex++;
 
 		// Slippi USB
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Slippi File Write", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "Yes" : "No ");
 		ListLoopIndex++;
 
 		// Slippi Port A
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Slippi on Port A", (ncfg->Config & (NIN_CFG_SLIPPI_PORT_A)) ? "Yes" : "No ");
 		ListLoopIndex++;
 
 		// Custom Cheats
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Custom Cheats/GCT", (ncfg->Config & (NIN_CFG_CHEATS)) ? "Yes" : "No ");
 		ListLoopIndex += 2;
 
-		PrintFormat(14, DARK_BLUE, MENU_POS_X + 35, SettingY(ListLoopIndex), "MELEE CODES");
+		PrintFormat(14, DARK_BLUE, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex), "MELEE CODES");
 		ListLoopIndex++;
 
 		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
@@ -1423,7 +1423,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 				const MeleeCodeLineItem *item = codeConfig->items[i];
 				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
 
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + 35, SettingY(ListLoopIndex),
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 						"%-15s:%s", item->name, option->name);
 				ListLoopIndex++;
 		}
@@ -1431,7 +1431,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 
 	// Draw the cursor
 	u32 cursor_color = BLACK;
-	PrintFormat(MENU_SIZE, cursor_color, MENU_POS_X + 15, SettingY(ctx->settings.posX), ARROW_RIGHT);
+	PrintFormat(MENU_SIZE, cursor_color, MENU_POS_X + SETTINGS_X_START - 20, SettingY(ctx->settings.posX), ARROW_RIGHT);
 
 	// Print a description for the selected option.
 	// `desc` contains pointers to lines and is terminated with NULL.

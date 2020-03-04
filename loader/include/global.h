@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define MENU_POS_Y			34
 #define DEFAULT_SIZE		16 // At 16, all characters are 10 pixels wide.  Use this to calculate centers
 #define MENU_SIZE			16 // If we run out of screen space this should be made smaller
+#define SETTINGS_X_START    35 // adjusts starting X position of settings menu (left/right shift)
 
 #define ARROW_LEFT			"\xE2\x97\x80"
 #define ARROW_RIGHT			"\xE2\x96\xB6"
