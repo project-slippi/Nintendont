@@ -155,18 +155,21 @@ const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
 
 static const char *modsDescription[] = {
 	"Game mods to apply",
-	"Each option includes all mods above it",
+	"Each option includes",
+	"all mods above it",
 	"",
-	"[Stealth]",
-	"  Neutral Spawns,",
-	"  Hide tags when invisible,",
-	"  Preserve tag in rotation",
+	"  [Stealth]",
+	"    Neutral Spawns,",
+	"    Hide tags when invisible,",
+	"    Preserve tag in rotation",
 	"",
-	"[Tournament]",
-	"  D-Pad Rumble, Stage Striking",
+	"  [Tournament]",
+	"    D-Pad Rumble",
+	"    Stage Striking",
 	"",
-	"[Friendlies]",
-	"  Skip Results, Salty Runback (A+B)",
+	"  [Friendlies]",
+	"    Skip Results,",
+	"    Salty Runback (A+B)",
 	NULL
 };
 
@@ -244,7 +247,7 @@ const MeleeCodeOption rulesetOptionVanilla = {
 
 const MeleeCodeOption rulesetOptionFrozenStadium = {
 	2,
-	"Frz Pkm",
+	"Frzn Pkmn",
 	g_frozen_size,
 	g_frozen,
 };
