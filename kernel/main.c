@@ -302,9 +302,11 @@ int _main( int argc, char *argv[] )
 		s_cnt = devices[0]->n_fatent * devices[0]->csize;
 
 /* NETWORK_INIT BOOT STAGE.
+ * Initialize the MAC address before initializing networking or file writing.
  * If a user has Slippi networking enabled, initialize the network.
  * Then, spawn the Slippi networking threads.
  */
+	InitMacAddress();
 	u32 UseNetwork = ConfigGetConfig(NIN_CFG_NETWORK);
 	if (UseNetwork == 1)
 	{

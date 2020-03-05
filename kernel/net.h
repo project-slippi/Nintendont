@@ -146,6 +146,7 @@ enum {
 /* Function declarations */
 
 int NCDInit(void);
+void InitMacAddress(void);
 s32 socket(s32 fd, u32 domain, u32 type, u32 protocol);
 s32 close(s32 fd, s32 socket);
 s32 bind(s32 fd, s32 socket, struct sockaddr *name);

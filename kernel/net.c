@@ -34,26 +34,8 @@ static const char top_name[15] ALIGNED(32) = "/dev/net/ip/top";
 int NCDInit(void)
 {
 	s32 res;
-	STACK_ALIGN(ioctlv, mac_vec, 2, 32);
+
 	dbgprintf("entered NCDInit()\n");
-
-	/* Fetch the MAC address of the Wi-Fi interface for use later when we
-	 * broadcast messages to potential Slippi clients.
-	 */
-
-	s32 ncd_fd = IOS_Open(ncd_name, 0);
-	void *ncd_buf = heap_alloc_aligned(0, 32, 32);
-	dbgprintf("ncd_fd: %i\n", ncd_fd);
-
-	mac_vec[0].data	= ncd_buf;
-	mac_vec[0].len	= 32;
-	mac_vec[1].data	= &wifi_mac_address;
-	mac_vec[1].len	= 6;
-
-	res = IOS_Ioctlv(ncd_fd, IOCTLV_NCD_GETMACADDRESS, 0, 2, mac_vec);
-	IOS_Close(ncd_fd);
-	heap_free(0, ncd_buf);
-
 
 	/* NWC24 initialization. This happens in libogc, but do we actually
 	 * *need* to do this? Is NWC24 state somehow tied to whether or not
@@ -92,6 +74,28 @@ int NCDInit(void)
 
 	NetworkStarted = 1;
 	return 0;
+}
+
+void InitMacAddress(void) {
+	s32 res;
+	STACK_ALIGN(ioctlv, mac_vec, 2, 32);
+
+	/* Fetch the MAC address of the Wi-Fi interface for use later when we
+	 * broadcast messages to potential Slippi clients.
+	 */
+
+	s32 ncd_fd = IOS_Open(ncd_name, 0);
+	void *ncd_buf = heap_alloc_aligned(0, 32, 32);
+	dbgprintf("ncd_fd: %i\n", ncd_fd);
+
+	mac_vec[0].data	= ncd_buf;
+	mac_vec[0].len	= 32;
+	mac_vec[1].data	= &wifi_mac_address;
+	mac_vec[1].len	= 6;
+
+	res = IOS_Ioctlv(ncd_fd, IOCTLV_NCD_GETMACADDRESS, 0, 2, mac_vec);
+	IOS_Close(ncd_fd);
+	heap_free(0, ncd_buf);
 }
 
 

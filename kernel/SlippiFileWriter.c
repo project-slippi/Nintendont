@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "string.h"
 #include "ff_utf8.h"
+#include "net.h"
 
 #include "Config.h"
 
