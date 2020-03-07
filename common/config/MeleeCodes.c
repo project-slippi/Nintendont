@@ -15,6 +15,8 @@
 
 #include "../../kernel/gecko/g_frozen.h" // Ruleset: Frozen Pokemon
 
+#include "../../kernel/gecko/g_widescreen.h" // Widescreen: 16:9
+
 #define NULL ((void *)0)
 
 /***************************************
@@ -274,6 +276,46 @@ const MeleeCodeLineItem rulesetLineItem = {
 	rulesetOptions,
 };
 
+
+/***************************************
+ * Widecreen Options
+ ***************************************/
+const MeleeCodeOption widescreenOptionOff = {
+	1,
+	"Off",
+	0,
+	NULL,
+};
+
+const MeleeCodeOption widescreenOptionWide = {
+	2,
+	"Wide",
+	g_widescreen_size,
+	g_widescreen,
+};
+
+const MeleeCodeOption *widescreenOptions[MELEE_CODES_WIDESCREEN_OPTION_COUNT] = {
+	&widescreenOptionOff,
+	&widescreenOptionWide,
+};
+
+static const char *widescreenDescription[] = {
+	"Codes that change the",
+	"aspect ratio of the game.",
+	"",
+	"Wide will turn on widescreen",
+	NULL
+};
+
+const MeleeCodeLineItem widescreenLineItem = {
+	MELEE_CODES_WIDESCREEN_OPTION_ID, // identifier
+	"Widescreen",
+	widescreenDescription,
+	1,
+	MELEE_CODES_WIDESCREEN_OPTION_COUNT,
+	widescreenOptions,
+};
+
 /***************************************
  * Combine Everything
  ***************************************/
@@ -283,6 +325,7 @@ const MeleeCodeLineItem *meleeCodeLineItems[] = {
 	&modsLineItem,
 	&lagReductionLineItem,
 	&rulesetLineItem,
+	&widescreenLineItem,
 };
 
 const MeleeCodeConfig mcconfig = {

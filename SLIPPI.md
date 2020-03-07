@@ -18,6 +18,7 @@ _Project Slippi Nintendont only officially supports the NTSC 1.02 version of Mel
 	- NTSC-to-PAL conversion
 	- Lag Reduction (PD or PD/VB)
 	- Ruleset Mods (Vanilla or Frozen Stadium)
+	- Widescreen (None or Wide)
 
 ## Requirements/Instructions
 Slippi Nintendont supports booting Melee from USB/SD card.
