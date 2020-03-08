@@ -303,7 +303,11 @@ static const char *widescreenDescription[] = {
 	"Codes that change the",
 	"aspect ratio of the game.",
 	"",
-	"Wide will turn on widescreen",
+	"Wide will turn on the melee",
+	"widescreen code and set the",
+	"Nintendont video width to 720.",
+	"Off will turn off the code and",
+	"the video width back to Auto.",
 	NULL
 };
 

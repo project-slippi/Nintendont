@@ -1259,6 +1259,17 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 
 				// Set the value of the option in the config
 				ncfg->MeleeCodeOptions[item->identifier] = option->value;
+
+				// Update ncfg Video Width
+				if (item->identifier == MELEE_CODES_WIDESCREEN_OPTION_ID) {
+					if (!strcmp(option->name, "Off")) {
+						ncfg->VideoScale = 0; //auto
+					}
+					else if (!strcmp(option->name, "Wide")) {
+						ncfg->VideoScale = 120; //720x480
+					}
+					ReconfigVideo(rmode);
+				}
 				break;
 			}
 		}
