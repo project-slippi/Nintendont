@@ -32,8 +32,16 @@ FIL currentFile;
 // vars for metadata generation
 u32 gameStartTime;
 
+// timer for drive led
+u32 driveTimer;
+
 void SlippiFileWriterInit()
 {
+	// Move to a more appropriate place later
+	// Enables Drive LED
+	set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
+	clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
+	clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
 	Slippi_Thread = do_thread_create(
 		SlippiHandlerThread,
 		((u32 *)&__slippi_stack_addr),
@@ -152,12 +160,17 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 
 	// Write footer
 	u32 wrote;
+	u32 res;
 	f_write(file, footer, writePos, &wrote);
 	f_sync(file);
 
 	f_lseek(file, 11);
 	f_write(file, &writtenByteCount, 4, &wrote);
-	f_sync(file);
+	res = f_sync(file);
+	if (res == 0) {
+		set32(HW_GPIO_OUT, GPIO_SLOT_LED);
+		driveTimer = read32(HW_TIMER);
+	}
 }
 
 static u32 SlippiHandlerThread(void *arg)
@@ -169,10 +182,15 @@ static u32 SlippiHandlerThread(void *arg)
 	static u64 memReadPos = 0;
 
 	u32 writtenByteCount = 0;
+	driveTimer = read32(HW_TIMER);
 	while (1)
 	{
 		// Cycle time, look at const definition for more info
 		mdelay(THREAD_CYCLE_TIME_MS);
+
+		if (TimerDiffMs(driveTimer) > 1000) {
+			clear32(HW_GPIO_OUT, GPIO_SLOT_LED);
+		}
 
 		// TODO: Ensure connection to USB is correct
 
