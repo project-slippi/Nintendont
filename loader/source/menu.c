@@ -1066,21 +1066,21 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX) {
-			case NIN_SETTINGS_VIDEO_WIDTH:
-				// Video width.
-				if (ncfg->VideoScale == 0)
-				{
-					ncfg->VideoScale = 120;
-				} 
-				else 
-				{
-					ncfg->VideoScale -= 2;
-					if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120)
-						ncfg->VideoScale = 0; //auto
-				}
-				ReconfigVideo(rmode);
-				ctx->redraw = true;
-				break;
+			//case NIN_SETTINGS_VIDEO_WIDTH:
+			//	// Video width.
+			//	if (ncfg->VideoScale == 0)
+			//	{
+			//		ncfg->VideoScale = 120;
+			//	} 
+			//	else 
+			//	{
+			//		ncfg->VideoScale -= 2;
+			//		if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120)
+			//			ncfg->VideoScale = 0; //auto
+			//	}
+			//	ReconfigVideo(rmode);
+			//	ctx->redraw = true;
+			//	break;
 			case NIN_SETTINGS_SCREEN_POSITION:
 				// Screen position.
 				ncfg->VideoOffset--;
@@ -1100,21 +1100,21 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		{
 			ctx->saveSettings = true;
 			switch (ctx->settings.posX) {
-			case NIN_SETTINGS_VIDEO_WIDTH:
-				// Video width.
-				if (ncfg->VideoScale == 0)
-				{
-					ncfg->VideoScale = 40;
-				}
-				else 
-				{
-					ncfg->VideoScale += 2;
-					if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120)
-						ncfg->VideoScale = 0; //auto
-				}
-				ReconfigVideo(rmode);
-				ctx->redraw = true;
-				break;
+			//case NIN_SETTINGS_VIDEO_WIDTH:
+			//	// Video width.
+			//	if (ncfg->VideoScale == 0)
+			//	{
+			//		ncfg->VideoScale = 40;
+			//	}
+			//	else 
+			//	{
+			//		ncfg->VideoScale += 2;
+			//		if (ncfg->VideoScale < 40 || ncfg->VideoScale > 120)
+			//			ncfg->VideoScale = 0; //auto
+			//	}
+			//	ReconfigVideo(rmode);
+			//	ctx->redraw = true;
+			//	break;
 			case NIN_SETTINGS_SCREEN_POSITION:
 				// Screen position.
 				ncfg->VideoOffset++;
@@ -1265,7 +1265,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 					if (!strcmp(option->name, "Off")) {
 						ncfg->VideoScale = 0; //auto
 					}
-					else if (!strcmp(option->name, "Wide")) {
+					else if (!strcmp(option->name, "On")) {
 						ncfg->VideoScale = 120; //720x480
 					}
 					ReconfigVideo(rmode);
@@ -1395,7 +1395,8 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		}
 		snprintf(vidOffset, sizeof(vidOffset), "%i", ncfg->VideoOffset);
 
-		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
+		// NOTE: Gray out Video Width as it is controlled by widescreen code
+		PrintFormat(MENU_SIZE, GRAY, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
 				"%-18s:%-4s", "Video Width", vidWidth);
 		ListLoopIndex++;
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
