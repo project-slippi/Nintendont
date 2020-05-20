@@ -95,16 +95,6 @@ extern GRRLIB_ttfFont *myFont;
 extern GRRLIB_texImg *background;
 extern GRRLIB_texImg *screen_buffer;
 
-enum
-{
-	TRI_NONE = 0,
-	TRI_GP1,
-	TRI_GP2,
-	TRI_AX,
-	TRI_VS4,
-	TRI_SB,
-} TRIGames;
-
 enum ContentType
 {
 	CONTENT_REQUIRED=	(1<< 0),	// not sure
