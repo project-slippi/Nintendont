@@ -89,9 +89,9 @@ s32 SlippiNetworkInit()
 
 
 /* waitForMessage()
- * Helper function - polls a socket with some timeout, waiting for a message 
- * to arrive. If the socket is readable (we received a message), immediately 
- * return true. Otherwise, if the call times out (no message arrived), return 
+ * Helper function - polls a socket with some timeout, waiting for a message
+ * to arrive. If the socket is readable (we received a message), immediately
+ * return true. Otherwise, if the call times out (no message arrived), return
  * false. The caller is responsible for actually reading bytes off the socket.
  */
 bool waitForMessage(s32 socket, u32 timeout_ms)
@@ -115,19 +115,19 @@ bool waitForMessage(s32 socket, u32 timeout_ms)
 
 
 /* getClientMessage()
- * Wait up to 'waitTimeMs' in a loop until we receive a handshake message from 
+ * Wait up to 'waitTimeMs' in a loop until we receive a handshake message from
  * some 'socket'. Return the the size of the message we've received, otherwise
  * return '-1' if we've timed out (the client never sent a message).
  */
 static u8 clientMsg[CLIENT_MSG_BUF_SIZE];
-u32 getClientMessage(s32 socket, u32 waitTimeMs)
+s32 getClientMessage(s32 socket, u32 waitTimeMs)
 {
 	u32 startTime = read32(HW_TIMER);
-	u32 pos = 0;
+	s32 pos = 0;
 
 	u32 msgSize = 0;
 
-	while (TimerDiffMs(startTime) < waitTimeMs) 
+	while (TimerDiffMs(startTime) < waitTimeMs)
 	{
 		bool hasData = waitForMessage(socket, 100);
 		if (!hasData) {
@@ -139,14 +139,19 @@ u32 getClientMessage(s32 socket, u32 waitTimeMs)
 
 		// First we need to read the total message size
 		if (msgSize == 0) {
-			// Read message size into 
+			// Read message size into
 			readLen = recvfrom(top_fd, socket, &msgSize, 4, 0);
 			dbgprintf("[Recv Len] Res: %d | Val: %d\r\n", readLen, msgSize);
 			if (readLen != 4) {
 				// If first read does not contain the size, this is probably an error? It might be possible
-				// to get 
+				// to get
 				return -2;
 			}
+		}
+
+		// Message is too long to read. Hang up on the other end
+		if(msgSize > CLIENT_MSG_BUF_SIZE) {
+			return -2;
 		}
 
 		readLen = recvfrom(top_fd, socket, &clientMsg[pos], msgSize - pos, 0);
@@ -173,7 +178,7 @@ u32 getClientMessage(s32 socket, u32 waitTimeMs)
 
 /* generateToken()
  * Generate a suitable token representing a client's session.
- * Avoids generating FB_TOKEN. Takes 'u32 except', which we explicitly avoid 
+ * Avoids generating FB_TOKEN. Takes 'u32 except', which we explicitly avoid
  * generating.
  */
 u32 generateToken(u32 except)
@@ -218,7 +223,7 @@ void killClient()
 	if (client.version == CLIENT_LATEST)
 	{
 		memcpy(&client_prev, &client, sizeof(struct SlippiClient));
-		dbgprintf("Saved cursor=0x%08x from session\r\n", 
+		dbgprintf("Saved cursor=0x%08x from session\r\n",
 				(u32)client.cursor);
 	}
 
@@ -285,7 +290,7 @@ s32 startServer()
 			dbgprintf("WARN: MAX_SERVER_RETRIES exceeded, giving up\r\n");
 			server_retries += 1;
 		}
-		
+
 		return -1;
 	}
 
@@ -353,7 +358,7 @@ u64 determineReadCursor(HandshakeClientPayload* payload, bool isFreshClient) {
 
 /* createClient()
  * Given some client socket accept()'ed by the server, create client state.
- * Waits for a handshake message from a client. If there is no handshake, 
+ * Waits for a handshake message from a client. If there is no handshake,
  * assume the client will use fallback behavior.
  *
  *	- If the client's handshake token matches a previous session, restore
@@ -386,7 +391,7 @@ bool createClient(s32 socket)
 	}
 
 	HandshakeClientPayload* payload = (HandshakeClientPayload*)msg.payload;
-	
+
 	dbgprintf("[Handshake] Received cursor: %u\r\n", (u32)payload->cursor);
 	dbgprintf("[Handshake] Received instance token: %u\r\n", payload->clientToken);
 
