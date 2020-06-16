@@ -1,0 +1,58 @@
+name: CI Slippi Nintendont Builds
+
+on:
+  push:
+    branches: 
+      - slippi
+  pull_request:
+    paths-ignore:
+      - "**.md"
+    branches:
+      - "**"
+
+jobs:  
+  ubuntu64:
+    name: "Loader Build"
+    runs-on: ubuntu-18.04
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: 'Fetch Git Tags'
+        if: success()
+        run: |
+          git fetch --prune --unshallow
+          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
+          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
+          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo ::set-env name=CURR_DATE::$(date +%Y-%m-%d)
+      - name: "Install prerequisites"
+        if: success()
+        shell: bash
+        run: |
+          sudo apt-get install g++-multilib
+          wget https://github.com/devkitPro/pacman/releases/download/devkitpro-pacman-1.0.1/devkitpro-pacman.deb
+          sudo dpkg -i devkitpro-pacman.deb
+          sudo dkp-pacman -Sy
+          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
+      - name: "Build"
+        if: success()
+        working-directory: ${{ github.workspace }}
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export DEVKITPPC=/opt/devkitpro/devkitPPC
+          make -j7
+      - name: "Package"
+        if: success()
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir artifact
+          mv ./loader/loader.dol ./artifact/boot.dol
+      - name: "Publish"
+        if: success()
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: ${{ env.CURR_DATE }}-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-loader
+          path: "./artifact/"
