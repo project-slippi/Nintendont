@@ -32,10 +32,18 @@ To build on windows, you need to run the `Incremental Build.bat` file in the Nin
 libwinpthread-1.dll error:
 ```
 make -C multidol
-make[1]: Entering directory '/home/Jas/Documents/GitHub/Nintendont/multidol'
+make[1]: Entering directory '../Nintendont/multidol'
  ASSEMBLE    crt0.S
-make[1]: *** [Makefile:36: crt0.o] Error 1
-make[1]: Leaving directory '/home/Jas/Documents/GitHub/Nintendont/multidol'
+ COMPILE     cache.c
+ COMPILE     main.c
+ COMPILE     global.c
+ COMPILE     apploader.c
+ COMPILE     dip.c
+ COMPILE     utils.c
+ LINK        multidol_ldr.elf
+collect2.exe: error: ld returned 53 exit status
+make[1]: *** [Makefile:44: multidol_ldr.elf] Error 1
+make[1]: Leaving directory '../Nintendont/multidol'
 make: *** [Makefile:34: multidol] Error 2
 ```
-For some reason my devkitPro installer did not install things quite correctly for me. In order to fix the above error, you will need to go to your `devkitPPC/bin` directory, grab the file called `libwinpthread-1.dll`. You will need to copy this file to `devkitPPC/libexec/gcc/powerpc-eabi/8.2.0`. Repeat the same thing for the `devkitARM` directory, this should fix the issue.
+For some reason the devkitPro installer might not install things correctly. In order to fix the above error, you will need to go to your `devkitPPC/bin` directory, grab the file called `libwinpthread-1.dll`, and copy it to `devkitPPC/powerpc-eabi/bin/`, this should fix the issue.
