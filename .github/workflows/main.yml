@@ -1,6 +1,9 @@
 name: CI Slippi Nintendont Builds
 
 on:
+  release:
+    types:
+      - published
   push:
     branches: 
       - slippi
@@ -49,7 +52,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir artifact
-          mv ./loader/loader.dol ./artifact/boot.dol
+          mv ./loader/loader.* ./artifact/
       - name: "Publish"
         if: success()
         uses: actions/upload-artifact@v2-preview
