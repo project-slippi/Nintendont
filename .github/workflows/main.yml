@@ -55,9 +55,9 @@ jobs:
           cp ./artifact/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
           cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
           cd "./release-artifact/apps/Slippi Nintendont/"
-          sed -i -e s/\<version\>\<\\/version\>/\<version\>${{ env.GIT_TAG }}\<\\/version\>/ meta.xml
-          sed -i -e s/\<release_date\>\<\\/release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}\<\\/release_date\>/ meta.xml
-          sed -i -e s/\<git_hash\>\<\\/git_hash\>/\<git_hash\>${{ env.GIT_HASH }}\<\\/git_hash\>/ meta.xml
+          sed -i -e s/\<version\>/\<version\>${{ env.GIT_TAG }}/ meta.xml
+          sed -i -e s/\<release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}/ meta.xml
+          sed -i -e s/\<git_hash\>/\<git_hash\>${{ env.GIT_HASH }}/ meta.xml
       - name: "Publish Loader"
         if: success()
         uses: actions/upload-artifact@v2-preview
