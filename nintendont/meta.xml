@@ -2,8 +2,9 @@
 <app version="1">
 	<name>Nintendont Slippi</name>
 	<coder>FIX94, crediar, Fizzi, metaconstruct, jmlee337, metonym</coder>
-	<version>1.9</version>
-	<release_date>20190222000000</release_date>
+	<version></version>
+	<release_date></release_date>
+	<git_hash></git_hash>
 	<short_description>Gamecube Loader</short_description>
 	<long_description>
 		A fork of Nintendont, designed specifically for Super Smash Bros. Melee.

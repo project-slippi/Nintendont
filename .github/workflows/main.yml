@@ -1,9 +1,6 @@
 name: CI Slippi Nintendont Builds
 
 on:
-  release:
-    types:
-      - published
   push:
     branches: 
       - slippi
@@ -26,10 +23,11 @@ jobs:
         if: success()
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo ::set-env name=GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
+          echo ::set-env name=GIT_HASH::$(git rev-parse --short HEAD)
+          echo ::set-env name=GIT_TAG::$(git describe --tags --abbrev=0)
           echo ::set-env name=CURR_DATE::$(date +%Y-%m-%d)
+          echo ::set-env name=CURR_TIMESTAMP::$(date +%Y%m%d000000)
       - name: "Install prerequisites"
         if: success()
         shell: bash
@@ -52,10 +50,23 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir artifact
+          mkdir -p "release-artifact/apps/Slippi Nintendont"
           mv ./loader/loader.* ./artifact/
-      - name: "Publish"
+          cp ./artifact/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
+          cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
+          cd "./release-artifact/apps/Slippi Nintendont/"
+          sed -i -e s/\<version\>\<\\/version\>/\<version\>${{ env.GIT_TAG }}\<\\/version\>/ meta.xml
+          sed -i -e s/\<release_date\>\<\\/release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}\<\\/release_date\>/ meta.xml
+          sed -i -e s/\<git_hash\>\<\\/git_hash\>/\<git_hash\>${{ env.GIT_HASH }}\<\\/git_hash\>/ meta.xml
+      - name: "Publish Loader"
         if: success()
         uses: actions/upload-artifact@v2-preview
         with:
-          name: ${{ env.CURR_DATE }}-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-loader
+          name: loader-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
           path: "./artifact/"
+      - name: "Publish Release Ready Loader"
+        if: success()
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: release-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
+          path: "./release-artifact/"
