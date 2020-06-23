@@ -1,0 +1,72 @@
+name: CI Slippi Nintendont Builds
+
+on:
+  push:
+    branches: 
+      - slippi
+  pull_request:
+    paths-ignore:
+      - "**.md"
+    branches:
+      - "**"
+
+jobs:  
+  ubuntu64:
+    name: "Loader Build"
+    runs-on: ubuntu-18.04
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: 'Fetch Git Tags'
+        if: success()
+        run: |
+          git fetch --prune --unshallow
+          echo ::set-env name=GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
+          echo ::set-env name=GIT_HASH::$(git rev-parse --short HEAD)
+          echo ::set-env name=GIT_TAG::$(git describe --tags --abbrev=0)
+          echo ::set-env name=CURR_DATE::$(date +%Y-%m-%d)
+          echo ::set-env name=CURR_TIMESTAMP::$(date +%Y%m%d000000)
+      - name: "Install prerequisites"
+        if: success()
+        shell: bash
+        run: |
+          sudo apt-get install g++-multilib
+          wget https://github.com/devkitPro/pacman/releases/download/devkitpro-pacman-1.0.1/devkitpro-pacman.deb
+          sudo dpkg -i devkitpro-pacman.deb
+          sudo dkp-pacman -Sy
+          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
+      - name: "Build"
+        if: success()
+        working-directory: ${{ github.workspace }}
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export DEVKITPPC=/opt/devkitpro/devkitPPC
+          make -j7
+      - name: "Package"
+        if: success()
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir artifact
+          mkdir -p "release-artifact/apps/Slippi Nintendont"
+          mv ./loader/loader.* ./artifact/
+          cp ./artifact/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
+          cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
+          cd "./release-artifact/apps/Slippi Nintendont/"
+          sed -i -e s/\<version\>/\<version\>${{ env.GIT_TAG }}/ meta.xml
+          sed -i -e s/\<release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}/ meta.xml
+          sed -i -e s/\<git_hash\>/\<git_hash\>${{ env.GIT_HASH }}/ meta.xml
+      - name: "Publish Loader"
+        if: success()
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: loader-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
+          path: "./artifact/"
+      - name: "Publish Release Ready Loader"
+        if: success()
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: release-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
+          path: "./release-artifact/"
