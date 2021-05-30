@@ -20,14 +20,15 @@ jobs:
         with:
           submodules: recursive
       - name: 'Fetch Git Tags'
+        shell: bash
         if: success()
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=GIT_TAG::$(git describe --tags --abbrev=0)
-          echo ::set-env name=CURR_DATE::$(date +%Y-%m-%d)
-          echo ::set-env name=CURR_TIMESTAMP::$(date +%Y%m%d000000)
+          echo "GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_ENV
+          echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+          echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "CURR_TIMESTAMP=$(date +%Y%m%d000000)" >> $GITHUB_ENV
       - name: "Install prerequisites"
         if: success()
         shell: bash
