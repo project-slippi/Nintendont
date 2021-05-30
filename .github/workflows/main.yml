@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install g++-multilib
-          wget https://github.com/devkitPro/pacman/releases/download/devkitpro-pacman-1.0.1/devkitpro-pacman.deb
+          wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
           sudo dpkg -i devkitpro-pacman.deb
           sudo dkp-pacman -Sy
           sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
