@@ -2,7 +2,6 @@
 
 #include "../../kernel/gecko/g_ucf.h" // UCF codeset
 #include "../../kernel/gecko/g_ucf_stealth.h" // UCF Stealth
-#include "../../kernel/gecko/g_toggles.h" // In Game CF Toggles
 
 #include "../../kernel/gecko/g_pal.h" // PAL codeset
 
@@ -41,28 +40,18 @@ const MeleeCodeOption cfOptionStealthUcf = {
 	g_ucf_stealth, // code
 };
 
-const MeleeCodeOption cfOptionToggle = {
-	4, // value
-	"Toggle", // name
-	g_toggles_size, // codeLen
-	g_toggles, // code
-};
-
 const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
 	&cfOptionOff,
 	&cfOptionUcf,
 	&cfOptionStealthUcf,
-	&cfOptionToggle,
 };
 
 static const char *cfDescription[] = {
 	"The type of controller fix to apply",
 	"",
-	"1. UCF will enable UCF 0.74",
+	"1. UCF will enable UCF 0.8",
 	"2. Stealth will enable UCF", 
 	"   without the CSS text",
-	"3. Toggle will allow controller fix",
-	"   selection on CSS",
 	NULL
 };
 
