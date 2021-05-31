@@ -4,6 +4,7 @@ on:
   push:
     branches: 
       - slippi
+      - ci
   pull_request:
     paths-ignore:
       - "**.md"
@@ -33,9 +34,9 @@ jobs:
         if: success()
         shell: bash
         run: |
-          sudo apt-get install g++-multilib
+          sudo apt-get install g++-multilib gdebi-core
           wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-          sudo dpkg -i devkitpro-pacman.amd64.deb
+          sudo gdebi devkitpro-pacman.amd64.deb
           sudo dkp-pacman -Sy
           sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
       - name: "Build"
