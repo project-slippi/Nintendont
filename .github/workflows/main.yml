@@ -34,11 +34,12 @@ jobs:
         if: success()
         shell: bash
         run: |
-          sudo apt-get install g++-multilib gdebi-core
+          sudo apt-get install g++-multilib
           wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-          sudo gdebi devkitpro-pacman.amd64.deb
-          sudo pacman -Sy
-          sudo pacman --noconfirm -S gba-dev gamecube-dev wii-dev
+          sudo dpkg -i devkitpro-pacman.amd64.deb
+          sudo apt-get install -f
+          sudo dkp-pacman -Sy
+          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
