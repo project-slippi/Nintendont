@@ -39,26 +39,11 @@ jobs:
           echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "CURR_TIMESTAMP=$(date +%Y%m%d000000)" >> $GITHUB_ENV
-      - name: "Install prerequisites"
-        if: success()
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get upgrade -y
-          sudo apt-get install -y --no-install-recommends g++-multilib apt-utils ca-certificates pkg-config curl wget bzip2 xz-utils make bsdtar doxygen gnupg git git-restore-mtime gdebi-core cmake zip unzip
-          wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-          sudo gdebi -n devkitpro-pacman.amd64.deb
-          rm devkitpro-pacman.amd64.deb
-          sudo dkp-pacman -Scc --noconfirm
-          sudo dkp-pacman -Syyu --noconfirm gamecube-dev wii-dev gba-dev
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          export DEVKITPRO=/opt/devkitpro
-          export DEVKITARM=/opt/devkitpro/devkitARM
-          export DEVKITPPC=/opt/devkitpro/devkitPPC
-          make -j7
+          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont --env DEVKITARM=/opt/devkitpro/devkitARM devkitpro/devkitppc bash ./build-ci.sh
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}
