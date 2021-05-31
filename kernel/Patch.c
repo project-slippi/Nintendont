@@ -1233,6 +1233,10 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 	u32 read;
 	u32 value = 0;
 
+	// Load melee code config
+	const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+	bool isWidescreen = ConfigGetMeleeCodeValue(codeConfig->items[MELEE_CODES_SCREEN_OPTION_ID]->identifier) == MELEE_CODES_WIDE_VALUE;
+
 	// PSO 1&2 / III
 	u32 isPSO = 0;
 	if (((TITLE_ID) == 0x44504F) || ((TITLE_ID) == 0x47504F) || ((TITLE_ID) == 0x475053))
@@ -2243,9 +2247,13 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 								break;
 						}
 					}
-					if(ConfigGetVideoScale() >= 40 && ConfigGetVideoScale() <= 120)
+					s8 videoScale = ConfigGetVideoScale();
+					if (isWidescreen) {
+						videoScale = 120;
+					}
+					if(videoScale >= 40 && videoScale <= 120)
 					{
-						W16((u32)Buffer+i+0xE, ConfigGetVideoScale() + 600);
+						W16((u32)Buffer+i+0xE, videoScale + 600);
 						W16((u32)Buffer+i+0xA, (720 - R16((u32)Buffer+i+0xE)) / 2);
 					}
 					if(ConfigGetVideoOffset() >= -20 && ConfigGetVideoOffset() <= 20)
@@ -3356,8 +3364,6 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		}
 
 		dbgprintf("Patch:Applying toggleables...\r\n");
-
-		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 		
 		// Iterate through all melee codes and add the codes that have been configured
 		int i, j;

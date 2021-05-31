@@ -14,6 +14,8 @@
 
 #include "../../kernel/gecko/g_frozen.h" // Ruleset: Frozen Pokemon
 
+#include "../../kernel/gecko/g_screen_wide.h" // Screen: Widescreen
+
 #define NULL ((void *)0)
 
 /***************************************
@@ -264,6 +266,55 @@ const MeleeCodeLineItem rulesetLineItem = {
 };
 
 /***************************************
+ * Screen Options
+ ***************************************/
+const MeleeCodeOption screenOptionDefault = {
+	1,
+	"Default",
+	0,
+	NULL,
+};
+
+const MeleeCodeOption screenOptionMonitor43 = {
+	2,
+	"Monitor 4:3",
+	0,
+	NULL,
+};
+
+const MeleeCodeOption screenOptionMonitor169 = {
+	MELEE_CODES_WIDE_VALUE,
+	"Monitor 16:9",
+	g_screen_wide_size,
+	g_screen_wide,
+};
+
+const MeleeCodeOption *screenOptions[MELEE_CODES_SCREEN_OPTION_COUNT] = {
+	&screenOptionDefault,
+	&screenOptionMonitor43,
+	&screenOptionMonitor169,
+};
+
+static const char *screenDescription[] = {
+	"Configurations for screen.",
+	"",
+	"Use default for CRT",
+	"",
+	"Pick proper aspect ratio for",
+	"monitor.",
+	NULL
+};
+
+const MeleeCodeLineItem screenLineItem = {
+	MELEE_CODES_SCREEN_OPTION_ID, // identifier
+	"Screen",
+	screenDescription,
+	1,
+	MELEE_CODES_SCREEN_OPTION_COUNT,
+	screenOptions,
+};
+
+/***************************************
  * Combine Everything
  ***************************************/
 const MeleeCodeLineItem *meleeCodeLineItems[] = {
@@ -272,6 +323,7 @@ const MeleeCodeLineItem *meleeCodeLineItems[] = {
 	&modsLineItem,
 	&lagReductionLineItem,
 	&rulesetLineItem,
+	&screenLineItem,
 };
 
 const MeleeCodeConfig mcconfig = {
