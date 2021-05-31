@@ -37,8 +37,8 @@ jobs:
           sudo apt-get install g++-multilib gdebi-core
           wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
           sudo gdebi devkitpro-pacman.amd64.deb
-          sudo dkp-pacman -Sy
-          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
+          sudo pacman -Sy
+          sudo pacman --noconfirm -S gba-dev gamecube-dev wii-dev
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
