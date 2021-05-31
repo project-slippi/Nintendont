@@ -13,9 +13,18 @@ on:
 
 jobs:  
   ubuntu64:
-    name: "Loader Build"
     runs-on: ubuntu-18.04
+    container: 
+      image: devkitpro/devkitppc
+      env:
+        DEVKITARM: /opt/devkitpro/devkitARM
+    name: "Loader Build"
     steps:
+      - name: "Install git"
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install git
       - name: "Checkout"
         uses: actions/checkout@v2
         with:
