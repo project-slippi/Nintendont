@@ -4,6 +4,7 @@ on:
   push:
     branches: 
       - slippi
+      - ci
   pull_request:
     paths-ignore:
       - "**.md"
@@ -29,36 +30,27 @@ jobs:
           echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "CURR_TIMESTAMP=$(date +%Y%m%d000000)" >> $GITHUB_ENV
-      - name: "Install prerequisites"
-        if: success()
-        shell: bash
-        run: |
-          sudo apt-get install g++-multilib
-          wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-          sudo dpkg -i devkitpro-pacman.amd64.deb
-          sudo dkp-pacman -Sy
-          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
+          echo "NIN_VERSION=$(cat common/include/NintendontVersion.h | grep NIN_VERSION | cut -d " " -f 3 | cut -d "\"" -f 2)" >> $GITHUB_ENV
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          export DEVKITPRO=/opt/devkitpro
-          export DEVKITARM=/opt/devkitpro/devkitARM
-          export DEVKITPPC=/opt/devkitpro/devkitPPC
-          make -j7
+          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont make -j7
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
           mkdir artifact
+          cp ./loader/loader.* ./artifact/
           mkdir -p "release-artifact/apps/Slippi Nintendont"
-          mv ./loader/loader.* ./artifact/
-          cp ./artifact/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
+          cp ./loader/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
           cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
-          cd "./release-artifact/apps/Slippi Nintendont/"
-          sed -i -e s/\<version\>/\<version\>${{ env.GIT_TAG }}/ meta.xml
+          pushd "./release-artifact/apps/Slippi Nintendont/"
+          sed -i -e s/\<version\>/\<version\>${{ env.NIN_VERSION }}/ meta.xml
           sed -i -e s/\<release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}/ meta.xml
           sed -i -e s/\<git_hash\>/\<git_hash\>${{ env.GIT_HASH }}/ meta.xml
+          popd
+          cp -r ./ci/* ./release-artifact/apps/
       - name: "Publish Loader"
         if: success()
         uses: actions/upload-artifact@v2-preview
