@@ -4,6 +4,7 @@ on:
   push:
     branches: 
       - slippi
+      - ci
   pull_request:
     paths-ignore:
       - "**.md"
@@ -29,23 +30,11 @@ jobs:
           echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "CURR_TIMESTAMP=$(date +%Y%m%d000000)" >> $GITHUB_ENV
-      - name: "Install prerequisites"
-        if: success()
-        shell: bash
-        run: |
-          sudo apt-get install g++-multilib
-          wget https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-          sudo dpkg -i devkitpro-pacman.amd64.deb
-          sudo dkp-pacman -Sy
-          sudo dkp-pacman --noconfirm -S gba-dev gamecube-dev wii-dev
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          export DEVKITPRO=/opt/devkitpro
-          export DEVKITARM=/opt/devkitpro/devkitARM
-          export DEVKITPPC=/opt/devkitpro/devkitPPC
-          make -j7
+          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont make -j7
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}
