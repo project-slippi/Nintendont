@@ -15,6 +15,7 @@
 #include "../../kernel/gecko/g_frozen.h" // Ruleset: Frozen Pokemon
 
 #include "../../kernel/gecko/g_screen_wide.h" // Screen: Widescreen
+#include "../../kernel/gecko/g_screen_mon43.h" // Screen: 4:3 -> 73:60
 
 #define NULL ((void *)0)
 
@@ -276,10 +277,10 @@ const MeleeCodeOption screenOptionDefault = {
 };
 
 const MeleeCodeOption screenOptionMonitor43 = {
-	2,
+	MELEE_CODES_43_MONITOR_VALUE,
 	"Monitor 4:3",
-	0,
-	NULL,
+	g_screen_mon43_size,
+	g_screen_mon43,
 };
 
 const MeleeCodeOption screenOptionMonitor169 = {
