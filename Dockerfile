@@ -1,11 +1,11 @@
-FROM devkitpro/toolchain-base
+FROM devkitpro/devkitppc
 
 MAINTAINER Nikki <nikki@slippi.gg>
 
-RUN dkp-pacman -Syyu --noconfirm gamecube-dev wii-dev wiiu-dev gba-dev && \
-  dkp-pacman -S --needed --noconfirm `dkp-pacman -Slq dkp-libs | grep '^ppc-'` && \ 
-  dkp-pacman -Scc --noconfirm\
+RUN dkp-pacman -Syyu --noconfirm gba-dev && \
+    dkp-pacman -S --needed --noconfirm `dkp-pacman -Slq dkp-libs | grep '^3ds-'` && \
+    dkp-pacman -S --needed --noconfirm `dkp-pacman -Slq dkp-libs | grep '^ppc-'` && \
+    dkp-pacman -Scc --noconfirm
 RUN apt-get update
-RUN apt-get install -y "g++-multilib"                                                    
-ENV DEVKITPPC=${DEVKITPRO}/devkitPPC
-ENV DEVKITARM=${DEVKITPRO}/devkitARM 
+RUN apt-get install -y "g++-multilib"
+ENV DEVKITARM=${DEVKITPRO}/devkitARM
