@@ -30,6 +30,7 @@ jobs:
           echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "CURR_TIMESTAMP=$(date +%Y%m%d000000)" >> $GITHUB_ENV
+          echo "NIN_VERSION=$(cat common/include/NintendontVersion.h | grep NIN_VERSION | cut -d " " -f 3 | cut -d "\"" -f 2)" >> $GITHUB_ENV
       - name: "Build"
         if: success()
         working-directory: ${{ github.workspace }}
@@ -45,7 +46,7 @@ jobs:
           cp ./artifact/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
           cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
           cd "./release-artifact/apps/Slippi Nintendont/"
-          sed -i -e s/\<version\>/\<version\>${{ env.GIT_TAG }}/ meta.xml
+          sed -i -e s/\<version\>/\<version\>${{ env.NIN_VERSION }}/ meta.xml
           sed -i -e s/\<release_date\>/\<release_date\>${{ env.CURR_TIMESTAMP }}/ meta.xml
           sed -i -e s/\<git_hash\>/\<git_hash\>${{ env.GIT_HASH }}/ meta.xml
       - name: "Publish Loader"
