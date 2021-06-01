@@ -13,8 +13,8 @@ on:
 
 jobs:  
   ubuntu64:
-    runs-on: ubuntu-18.04
     name: "Loader Build"
+    runs-on: ubuntu-18.04
     steps:
       - name: "Checkout"
         uses: actions/checkout@v2
