@@ -14,17 +14,8 @@ on:
 jobs:  
   ubuntu64:
     runs-on: ubuntu-18.04
-    # container: 
-    #   image: devkitpro/devkitppc
-    #   env:
-    #     DEVKITARM: /opt/devkitpro/devkitARM
     name: "Loader Build"
     steps:
-      # - name: "Install git"
-      #   shell: bash
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install git
       - name: "Checkout"
         uses: actions/checkout@v2
         with:
@@ -43,7 +34,7 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont bash ./build-ci.sh
+          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont make -j7
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}
