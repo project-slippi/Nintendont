@@ -41,7 +41,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir artifact
-          mv ./loader/loader.* ./artifact/
+          cp ./loader/loader.* ./artifact/
           mkdir -p "release-artifact/apps/Slippi Nintendont"
           cp ./loader/loader.dol "./release-artifact/apps/Slippi Nintendont/boot.dol"
           cp ./nintendont/{icon.png,meta.xml} "./release-artifact/apps/Slippi Nintendont/"
