@@ -43,7 +43,8 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont --env DEVKITARM=/opt/devkitpro/devkitARM devkitpro/devkitppc bash ./build-ci.sh
+          sudo docker build -t slippi/nintendont .
+          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont --env DEVKITARM=/opt/devkitpro/devkitARM slippi/nintendont bash ./build-ci.sh
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}
