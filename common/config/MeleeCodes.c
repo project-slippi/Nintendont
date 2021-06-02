@@ -306,14 +306,14 @@ const MeleeCodeOption gameplayOptionLgl = {
 };
 
 const MeleeCodeOption gameplayOptionWobbling = {
-	2,
+	3,
 	"Wobbling",
 	g_gameplay_wobbling_size,
 	g_gameplay_wobbling,
 };
 
 const MeleeCodeOption gameplayOptionBoth = {
-	2,
+	4,
 	"Both",
 	g_gameplay_both_size,
 	g_gameplay_both,

@@ -14,8 +14,8 @@
 #define MELEE_CODES_MODS_OPTION_ID 2
 #define MELEE_CODES_LAG_REDUCTION_OPTION_ID 3
 #define MELEE_CODES_STAGES_OPTION_ID 4
-#define MELEE_CODES_SCREEN_OPTION_ID 5
-#define MELEE_CODES_GAMEPLAY_OPTION_ID 6
+#define MELEE_CODES_GAMEPLAY_OPTION_ID 5
+#define MELEE_CODES_SCREEN_OPTION_ID 6
 
 // Indicates the maximum number possible for ID. This is important in case the line items change,
 // we don't want to persist setting values for a different line item
