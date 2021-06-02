@@ -12,7 +12,12 @@
 #include "../../kernel/gecko/g_lag_pd.h" // Lag Reduction: PD
 #include "../../kernel/gecko/g_lag_pdvb.h" // Lag Reduction: PD+VB
 
-#include "../../kernel/gecko/g_frozen.h" // Ruleset: Frozen Pokemon
+#include "../../kernel/gecko/g_stages_stadium.h" // Stages: Frozen Pokemon
+#include "../../kernel/gecko/g_stages_all.h" // Stages: Frozen Pokemon
+
+#include "../../kernel/gecko/g_gameplay_lgl.h" // Gameplay: LGL
+#include "../../kernel/gecko/g_gameplay_wobbling.h" // Gameplay: Wobbling
+#include "../../kernel/gecko/g_gameplay_both.h" // Gameplay: Both
 
 #include "../../kernel/gecko/g_screen_wide.h" // Screen: Widescreen
 #include "../../kernel/gecko/g_screen_mon43.h" // Screen: 4:3 -> 73:60
@@ -173,7 +178,7 @@ const MeleeCodeLineItem modsLineItem = {
 	MELEE_CODES_MODS_OPTION_ID, // identifier
 	"Convenience",
 	modsDescription,
-	1,
+	2,
 	MELEE_CODES_MODS_OPTION_COUNT,
 	modsOptions,
 };
@@ -233,43 +238,120 @@ const MeleeCodeLineItem lagReductionLineItem = {
 };
 
 /***************************************
- * Ruleset Options
+ * Stage Options
  ***************************************/
-const MeleeCodeOption rulesetOptionVanilla = {
+const MeleeCodeOption stagesOptionVanilla = {
 	1,
 	"Off",
 	0,
 	NULL,
 };
 
-const MeleeCodeOption rulesetOptionFrozenStadium = {
+const MeleeCodeOption stagesOptionFrozenStadium = {
 	2,
-	"Medium",
-	g_frozen_size,
-	g_frozen,
+	"Stadium",
+	g_stages_stadium_size,
+	g_stages_stadium,
 };
 
-const MeleeCodeOption *rulesetOptions[MELEE_CODES_RULESET_OPTION_COUNT] = {
-	&rulesetOptionVanilla,
-	&rulesetOptionFrozenStadium,
+const MeleeCodeOption stagesOptionFrozenAll = {
+	3,
+	"All",
+	g_stages_all_size,
+	g_stages_all,
 };
 
-static const char *rulesetDescription[] = {
-	"Codes that change the rules",
-	"of the game.",
+const MeleeCodeOption *stagesOptions[MELEE_CODES_STAGES_OPTION_COUNT] = {
+	&stagesOptionVanilla,
+	&stagesOptionFrozenStadium,
+	&stagesOptionFrozenAll,
+};
+
+static const char *stagesDescription[] = {
+	"Choose which stages should be frozen.",
 	"",
-	"  [Medium]",
-	"    Frozen Stadium",
+	"  [Stadium]",
+	"    Freezes Stadium only",
+	"",
+	"  [All]",
+	"    Freezes Stadium, Whispy,",
+	"    Shy Guys, FD backgrounds",
 	NULL
 };
 
-const MeleeCodeLineItem rulesetLineItem = {
-	MELEE_CODES_RULESET_OPTION_ID, // identifier
-	"Ruleset",
-	rulesetDescription,
+const MeleeCodeLineItem stagesLineItem = {
+	MELEE_CODES_STAGES_OPTION_ID, // identifier
+	"Frozen Stages",
+	stagesDescription,
 	1,
-	MELEE_CODES_RULESET_OPTION_COUNT,
-	rulesetOptions,
+	MELEE_CODES_STAGES_OPTION_COUNT,
+	stagesOptions,
+};
+
+/***************************************
+ * Gameplay Options
+ ***************************************/
+const MeleeCodeOption gameplayOptionVanilla = {
+	1,
+	"Off",
+	0,
+	NULL,
+};
+
+const MeleeCodeOption gameplayOptionLgl = {
+	2,
+	"LGL",
+	g_gameplay_lgl_size,
+	g_gameplay_lgl,
+};
+
+const MeleeCodeOption gameplayOptionWobbling = {
+	2,
+	"Wobbling",
+	g_gameplay_wobbling_size,
+	g_gameplay_wobbling,
+};
+
+const MeleeCodeOption gameplayOptionBoth = {
+	2,
+	"Both",
+	g_gameplay_both_size,
+	g_gameplay_both,
+};
+
+const MeleeCodeOption *gameplayOptions[MELEE_CODES_GAMEPLAY_OPTION_COUNT] = {
+	&gameplayOptionVanilla,
+	&gameplayOptionLgl,
+	&gameplayOptionWobbling,
+	&gameplayOptionBoth,
+};
+
+static const char *gameplayDescription[] = {
+	"Choose gameplay changes",
+	"",
+	"  [LGL]",
+	"    Ledge grab limit. In the event",
+	"    of a timeout, a player with",
+	"    more than 45 ledge grabs will",
+	"    lose",
+	"",
+	"  [Wobbling]",
+	"    Prevents wobbling. After Nana",
+	"    hits opponent 3 times, grab is",
+	"    broken.",
+	"",
+	"  [Both]",
+	"    Enables both other codes",
+	NULL
+};
+
+const MeleeCodeLineItem gameplayLineItem = {
+	MELEE_CODES_GAMEPLAY_OPTION_ID, // identifier
+	"Gameplay",
+	gameplayDescription,
+	1,
+	MELEE_CODES_GAMEPLAY_OPTION_COUNT,
+	gameplayOptions,
 };
 
 /***************************************
@@ -337,7 +419,8 @@ const MeleeCodeLineItem *meleeCodeLineItems[] = {
 	&versionLineItem,
 	&modsLineItem,
 	&lagReductionLineItem,
-	&rulesetLineItem,
+	&stagesLineItem,
+	&gameplayLineItem,
 	&screenLineItem,
 };
 
