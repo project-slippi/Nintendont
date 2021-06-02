@@ -52,9 +52,14 @@ const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
 static const char *cfDescription[] = {
 	"The type of controller fix to apply",
 	"",
-	"1. UCF will enable UCF 0.8",
-	"2. Stealth will enable UCF", 
-	"   without the CSS text",
+	"  [UCF]",
+	"    Will enable UCF 0.8. Includes",
+	"    dashback, shield drop, and",
+	"    wiggle out of tumble.",
+	"",
+	"  [Stealth]",
+	"    Enables UCF 0.8 without the",
+	"    CSS text",
 	NULL
 };
 
@@ -146,13 +151,12 @@ const MeleeCodeOption *modsOptions[MELEE_CODES_MODS_OPTION_COUNT] = {
 };
 
 static const char *modsDescription[] = {
-	"Game mods to apply",
-	"Each option includes",
-	"all mods above it",
+	"Convenience changes. Each option",
+	"includes all changes above it",
 	"",
 	"  [Stealth]",
-	"    Neutral Spawns,",
-	"    Hide tags when invisible,",
+	"    Neutral Spawns",
+	"    Hide tags when invisible",
 	"    Preserve tag in rotation",
 	"",
 	"  [Tournament]",
@@ -160,14 +164,14 @@ static const char *modsDescription[] = {
 	"    Stage Striking",
 	"",
 	"  [Friendlies]",
-	"    Skip Results,",
+	"    Skip Results",
 	"    Salty Runback (A+B)",
 	NULL
 };
 
 const MeleeCodeLineItem modsLineItem = {
 	MELEE_CODES_MODS_OPTION_ID, // identifier
-	"Game Mods",
+	"Convenience",
 	modsDescription,
 	1,
 	MELEE_CODES_MODS_OPTION_COUNT,
@@ -207,14 +211,15 @@ const MeleeCodeOption *lagReductionOptions[MELEE_CODES_LAG_REDUCTION_OPTION_COUN
 static const char *lagReductionDescription[] = {
 	"Lag reduction codes",
 	"",
-	"1. PD is the polling drift fix",
-	"   it will make sure",
-	"   inputs are polled consistently.",
-	"   Average 4.17ms reduction",
+	"  [PD]",
+	"    Polling drift fix. Ensures",
+	"    inputs are polled consistently.",
+	"    Average 4.17ms reduction",
 	"",
-	"2. PD+VB, VB is the visual buffer",
-	"   it removes one frame of lag.",
-	"   Average 20.83ms reduction",
+	"  [PD+VB]",
+  "    VB is the visual buffer.",
+	"    Removes one frame of lag.",
+	"    Average 20.83ms reduction",
 	NULL,
 };
 
@@ -239,7 +244,7 @@ const MeleeCodeOption rulesetOptionVanilla = {
 
 const MeleeCodeOption rulesetOptionFrozenStadium = {
 	2,
-	"Frzn Pkmn",
+	"Medium",
 	g_frozen_size,
 	g_frozen,
 };
@@ -250,10 +255,11 @@ const MeleeCodeOption *rulesetOptions[MELEE_CODES_RULESET_OPTION_COUNT] = {
 };
 
 static const char *rulesetDescription[] = {
-	"Codes that change the",
-	"rules of the game.",
+	"Codes that change the rules",
+	"of the game.",
 	"",
-	"Frz Pkm will freeze stadium",
+	"  [Medium]",
+	"    Frozen Stadium",
 	NULL
 };
 
@@ -285,7 +291,7 @@ const MeleeCodeOption screenOptionMonitor43 = {
 
 const MeleeCodeOption screenOptionMonitor169 = {
 	MELEE_CODES_WIDE_VALUE,
-	"Monitor 16:9",
+	"Widescreen",
 	g_screen_wide_size,
 	g_screen_wide,
 };
@@ -297,12 +303,20 @@ const MeleeCodeOption *screenOptions[MELEE_CODES_SCREEN_OPTION_COUNT] = {
 };
 
 static const char *screenDescription[] = {
-	"Configurations for screen.",
+	"Codes used for aspect ratio.",
 	"",
-	"Use default for CRT",
+	"  [Default]",
+	"    Use on CRT or for no change.",
 	"",
-	"Pick proper aspect ratio for",
-	"monitor.",
+	"  [Monitor 4:3]",
+	"    Use with monitor with aspect",
+	"    forced to 4:3. Will modify",
+	"    game to look 73:60.",
+	"",
+	"  [Widescreen]",
+	"    Use on a 16:9 monitor. Will",
+	"    apply logic to expand game",
+	"    visuals.",
 	NULL
 };
 
