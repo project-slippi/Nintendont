@@ -21,7 +21,7 @@ jobs:
       - name: Zip Release Artifact
         run: |
           mv release*/apps ./
-          zip -r "Slippi-Nintendont-${{ env.Version }}.zip" apps/
+          zip -r "Slippi-Nintendont-${{ env.VERSION }}.zip" apps/
           rm -rf release* loader* apps/
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
