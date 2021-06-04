@@ -35,7 +35,7 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --interactive --rm --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont make -j7
+          sudo docker run --volume=${PWD}:/nintendont --workdir=/nintendont nikhilnarayana/devkitpro-nintendont make -j7
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}

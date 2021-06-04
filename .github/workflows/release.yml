@@ -21,6 +21,7 @@ jobs:
       - name: Zip Release Artifact
         run: |
           mv release*/apps ./
+          mv loader*/* ./
           zip -r "Slippi-Nintendont-${{ env.VERSION }}.zip" apps/
           rm -rf release* loader* apps/
       - name: Upload binaries to release
