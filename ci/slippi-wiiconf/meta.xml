@@ -3,7 +3,7 @@
 	<name>slippi-wiiconf</name>
 	<coder>https://github.com/project-slippi</coder>
 	<version>0.1</version>
-	<release_date>20190304000000</release_date>
+	<release_date>20210603000000</release_date>
 	<short_description>Project Slippi configuration</short_description>
 	<long_description>Utility to help configure a Wii, for use with Project Slippi.</long_description>
 </app>
