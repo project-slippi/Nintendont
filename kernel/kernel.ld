@@ -36,6 +36,9 @@ __slippi_network_broadcast_stack_addr = __slippi_stack_addr + __slippi_network_b
 __slippi_debug_stack_size = 0x400;
 __slippi_debug_stack_addr = __slippi_network_broadcast_stack_addr + __slippi_debug_stack_size;
 
+__ven_change_stack_size = 0x400;
+__ven_change_stack_addr = __slippi_debug_stack_addr + __ven_change_stack_size;
+
 MEMORY {
 
 	code		: ORIGIN = 0x12F00000,	LENGTH = 0x60000

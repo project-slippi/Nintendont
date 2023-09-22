@@ -42,10 +42,8 @@ distribution.
 #include "vsprintf.h"
 
 #define USBV5_IOCTL_GETVERSION                   0 // should return 0x50001
-#define USBV5_IOCTL_GETDEVICECHANGE              1
 #define USBV5_IOCTL_SHUTDOWN                     2
 #define USBV5_IOCTL_GETDEVPARAMS                 3
-#define USBV5_IOCTL_ATTACHFINISH                 6
 #define USBV5_IOCTL_SETALTERNATE                 7
 #define USBV5_IOCTL_SUSPEND_RESUME              16
 #define USBV5_IOCTL_CANCELENDPOINT              17
@@ -122,7 +120,7 @@ s32 USB_Initialize()
 	if (ven_fd < 0)
 		ven_fd = IOS_Open(__ven_path, IPC_OPEN_NONE);
 
-	return IPC_OK;
+	return ven_fd;
 }
 
 s32 USB_Deinitialize()
