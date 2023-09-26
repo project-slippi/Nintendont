@@ -58,9 +58,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern char __bss_start, __bss_end;
 extern char __di_stack_addr, __di_stack_size;
 
+// Reference to SD sector count
+extern u32 sd_s_cnt;
+
 // References to USB sector size and sector count
-extern u32 s_size;
-extern u32 s_cnt;
+extern u32 usb_s_size;
+extern u32 usb_s_cnt;
 
 // Global state for network connectivity, from kernel/net.c
 extern u32 NetworkStarted;
@@ -198,7 +201,7 @@ int _main( int argc, char *argv[] )
 	if (shouldBootUsb)
 	{
 		ret = USBStorage_Startup(!UseUSB);
-		dbgprintf("USB:Drive size: %dMB SectorSize:%d\r\n", s_cnt / 1024 * s_size / 1024, s_size);
+		dbgprintf("USB:Drive size: %dMB SectorSize:%d\r\n", usb_s_cnt / 1024 * usb_s_size / 1024, usb_s_size);
 		if(ret != 1)
 		{
 			dbgprintf("USB Device Init failed:%d\r\n", ret );
@@ -211,7 +214,6 @@ int _main( int argc, char *argv[] )
 	// Boot up SD if it is being used to boot a game
 	if (shouldBootSd)
 	{
-		s_size = PAGE_SIZE512; //manually set s_size
 		ret = SDHCInit();
 		if(ret != 1)
 		{
@@ -239,7 +241,7 @@ int _main( int argc, char *argv[] )
 		res = f_mount( devices[0], fatSdName, 1 );
 		if( res != FR_OK )
 		{
-			dbgprintf("ES:f_mount() failed:%d\r\n", res );
+			dbgprintf("SD ES:f_mount() failed:%d\r\n", res );
 			BootStatusError(-3, res);
 			mdelay(4000);
 			Shutdown();
@@ -253,7 +255,7 @@ int _main( int argc, char *argv[] )
 		res = f_mount( devices[1], fatUsbName, 1 );
 		if( res != FR_OK )
 		{
-			dbgprintf("ES:f_mount() failed:%d\r\n", res );
+			dbgprintf("USB ES:f_mount() failed:%d\r\n", res );
 			BootStatusError(-3, res);
 			mdelay(4000);
 			Shutdown();
@@ -298,8 +300,11 @@ int _main( int argc, char *argv[] )
 			break;
 	}
 
-	if(!UseUSB) //Use FAT values for SD
-		s_cnt = devices[0]->n_fatent * devices[0]->csize;
+	if(shouldBootSd) //Use FAT values for SD
+		sd_s_cnt = devices[0]->n_fatent * devices[0]->csize;
+
+	u32 s_size = UseUSB ? usb_s_size : PAGE_SIZE512;
+	u32 s_cnt = UseUSB ? usb_s_cnt : sd_s_cnt;
 
 /* NETWORK_INIT BOOT STAGE.
  * Initialize the MAC address before initializing networking or file writing.

@@ -12,7 +12,6 @@
 #include "string.h"
 #include "debug.h"
 #include "net.h"
-#include "ff_utf8.h"
 #include "Config.h"
 
 

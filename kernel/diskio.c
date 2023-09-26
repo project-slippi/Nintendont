@@ -18,8 +18,9 @@
 #include "common.h"
 
 extern bool access_led;
-u32 s_size;	// Sector size.
-u32 s_cnt;	// Sector count.
+u32 usb_s_cnt;	// USB Sector count.
+u32 usb_s_size;	// USB Sector size.
+u32 sd_s_cnt;	// SD Sector count.
 
 
 /*-----------------------------------------------------------------------*/
@@ -213,7 +214,12 @@ DRESULT disk_ioctl (
 )
 {
 	if(cmd == GET_SECTOR_SIZE)
-		*(WORD*)buff = s_size;
+	{
+		if (pdrv == DEV_SD)
+			*(WORD*)buff = PAGE_SIZE512;
+		else if (pdrv == DEV_USB)
+			*(WORD*)buff = usb_s_size;
+	}
 
 	return RES_OK;
 }

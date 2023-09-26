@@ -158,7 +158,7 @@ typedef struct
 	u8 ep_out;
 } important_storage_data;
 
-extern u32 s_size, s_cnt;
+extern u32 usb_s_size, usb_s_cnt;
 
 static bool __inited = false;
 static bool __mounted = false;
@@ -307,9 +307,8 @@ void USBStorage_Open()
 	sync_before_read((void*)0x132C1000, sizeof(important_storage_data));
 	important_storage_data *d = (important_storage_data*)0x132C1000;
 
-	s_size = d->sector_size;
-	s_cnt = d->sector_count;
-
+	__mounted_device.sector_size = d->sector_size;
+	__mounted_device.sector_count = d->sector_count;
 	__mounted_device.lun = d->lun;
 	__mounted_device.vid = d->vid;
 	__mounted_device.pid = d->pid;
@@ -318,6 +317,9 @@ void USBStorage_Open()
 	__mounted_device.usb_fd = d->usb_fd;
 	__mounted_device.ep_in = d->ep_in;
 	__mounted_device.ep_out = d->ep_out;
+
+	usb_s_size = __mounted_device.sector_size;
+	usb_s_cnt = __mounted_device.sector_count;
 
 	__mounted = true;
 
@@ -333,8 +335,10 @@ static u32 __ven_change_thread()
 		mqueue_recv(venchangequeue, &msg, 0);
 		mqueue_ack(msg, 0);
 		__ioctl_running = false;
-		__main_thread_dirty = true;
+
+		// order actually matters here for thread safety
 		__slippi_thread_dirty = true;
+		__main_thread_dirty = true;
 	}
 	return 0;
 }
@@ -387,7 +391,7 @@ bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer, numSectors * s_size, cmd, sizeof(cmd), 0, &status, NULL);
+	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer, __mounted_device.sector_size, cmd, sizeof(cmd), 0, &status, NULL);
 	if(retval > 0 && status != 0)
 		retval = USBSTORAGE_ESTATUS;
 
@@ -414,7 +418,7 @@ bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, (u8*)buffer, numSectors * s_size, cmd, sizeof(cmd), 1, &status, NULL);
+	retval = __cycle(&__mounted_device, __mounted_device.lun, (u8*)buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 1, &status, NULL);
 	if(retval > 0 && status != 0)
 		retval = USBSTORAGE_ESTATUS;
 
@@ -453,6 +457,7 @@ void USBStorage_Shutdown(void)
 	__inited = false;
 }
 
+// see libogc/usb.c: __find_next_endpoint
 static u32 __find_next_endpoint(u8 *buffer,s32 size,u8 align)
 {
 	u8 *ptr = buffer;
@@ -522,6 +527,7 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 	return false;
 }
 
+// see libogc/usbstorage.c: __usbstorage_IsInserted
 bool __has_device_after_change()
 {
 	int i;
@@ -626,7 +632,7 @@ bool __has_device_after_change()
 					new_device.ep_in = endpoint_in;
 					new_device.ep_out = endpoint_out;
 
-					// Even though (we assume) the device has only one configuration, we need to explicitly select it. TODO
+					// Even though (we assume) the device has only one configuration, we need to explicitly select it.
 					u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_DEVICE;
 					retval = USB_WriteCtrlMsg(new_device.usb_fd, bmRequestType, USB_REQ_SETCONFIG, ucd->bConfigurationValue, 0, 0, NULL);
 
@@ -636,6 +642,8 @@ bool __has_device_after_change()
 					if (__setValidLun(&new_device, max_lun))
 					{
 						memcpy(&__mounted_device, &new_device, sizeof(important_storage_data));
+						usb_s_size = __mounted_device.sector_size;
+						usb_s_cnt = __mounted_device.sector_count;
 						__mounted = true;
 
 						/*
@@ -646,10 +654,7 @@ bool __has_device_after_change()
 							__mounted_device.lun,
 							__mounted_device.ep_out,
 							__mounted_device.ep_in,
-							__mounted_device.interface,
-							__mounted_device.usb_fd,
-							__mounted_device.vid,
-							__mounted_device.pid);
+							__mounted_device.interface);
 						*/
 
 						udelay(10000);

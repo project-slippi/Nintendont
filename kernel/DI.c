@@ -43,7 +43,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "ff_utf8.h"
 static u8 DummyBuffer[0x1000] __attribute__((aligned(32)));
-extern u32 s_cnt;
+extern u32 usb_s_cnt;
 
 #ifndef DEBUG_DI
 #define dbgprintf(...)
@@ -865,7 +865,7 @@ u32 DIReadThread(void *arg)
 			case IOS_IOCTL:
 				if(di_msg->ioctl.command == 2)
 				{
-					USBStorage_ReadSectors(read32(HW_TIMER) % s_cnt, 1, DummyBuffer);
+					USBStorage_ReadSectors(read32(HW_TIMER) % usb_s_cnt, 1, DummyBuffer);
 					mqueue_ack( di_msg, 0 );
 					break;
 				}
