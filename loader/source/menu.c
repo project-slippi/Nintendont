@@ -828,11 +828,13 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 
 			if ((ncfg->UseUSB == 0) && (usb_attached != 1)  && (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)))
 			{
+				int usbStatusY;
 				switch (disk_status(ncfg->UseUSB ? DEV_SD : DEV_USB)) {
 				case STA_NODISK: {
 					PrintFormat(MENU_SIZE, RED, MENU_POS_X, SettingY(11), "[!] NO WRITE DEVICE");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Please insert a USB drive");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "to write Slippi replays.");
+					usbStatusY = 15;
 					break;
 				}
 				case STA_NOINIT: {
@@ -841,6 +843,7 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "There may be a non-Slippi");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "problem in this Wii's");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "hardware or software.");
+					usbStatusY = 17;
 					break;
 				}
 				default: {
@@ -848,9 +851,13 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Please format USB drive");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "as FAT32 or exFAT to write");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "Slippi replays.");
+					usbStatusY = 16;
 					break;
 				}
 				}
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY), "Restart Slippi Nintendont");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY + 1), "to check again or start");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY + 2), "game to try anyway.");
 			}
 
 			// Warn the user if they're running low on USB disk space
