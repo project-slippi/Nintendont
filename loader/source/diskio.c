@@ -71,6 +71,9 @@ DSTATUS disk_initialize (
 	if (!disk_isInit[pdrv]) {
 		if (!driver[pdrv]->startup())
 			return STA_NOINIT;
+
+		// Device initialized.
+		disk_isInit[pdrv] = true;
 	}
 	if (!driver[pdrv]->isInserted())
 		return STA_NODISK;
@@ -95,9 +98,6 @@ DSTATUS disk_initialize (
 	// NOTE: endOfPartition isn't usable, since this is a
 	// per-disk cache, not per-partition. Use UINT_MAX-1.
 	cache[pdrv] = _FAT_cache_constructor(4, 64, driver[pdrv], UINT_MAX-1, sectorSize[pdrv]);
-
-	// Device initialized.
-	disk_isInit[pdrv] = true;
 	return 0;
 }
 
