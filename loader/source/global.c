@@ -598,7 +598,16 @@ const WCHAR *MountDevice(BYTE pdrv)
 			// Could not mount the filesystem.
 			free(devices[pdrv]);
 			devices[pdrv] = NULL;
+
+			if (pdrv == DEV_USB)
+			{
+				usb_attached = 0;
+			}
 		}
+	}
+	else if (pdrv == DEV_USB)
+	{
+		usb_attached = 0;
 	}
 
 	return (devices[pdrv] ? devInitInfo[pdrv].devNameFF : NULL);
@@ -624,6 +633,11 @@ int UnmountDevice(BYTE pdrv)
 		// Free the FatFS object.
 		free(devices[pdrv]);
 		devices[pdrv] = 0;
+
+		if (pdrv == DEV_USB)
+		{
+			usb_attached = 0;
+		}
 	}
 
 	// Shut down the device driver.

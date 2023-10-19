@@ -855,9 +855,7 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 					break;
 				}
 				}
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY), "Restart Slippi Nintendont");
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY + 1), "to check again or start");
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY + 2), "game to try anyway.");
+				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(usbStatusY), "Press start to check again");
 			}
 
 			// Warn the user if they're running low on USB disk space
@@ -865,18 +863,25 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 			{
 				int lowUsbWarnThreshold = 500;
 				int lowUsbErrorThreshold = 50;
-
-				if ((usb_replays_left < lowUsbWarnThreshold) && (usb_replays_left > lowUsbErrorThreshold))
-					PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
-				if (usb_replays_left <= lowUsbErrorThreshold)
-					PrintFormat(MENU_SIZE, RED, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
-
-				if (usb_replays_left < lowUsbWarnThreshold) {
+				// Warn the user if they're running low on USB disk space
+				if (usb_replays_left < lowUsbWarnThreshold)
+				{
+					if (usb_replays_left <= lowUsbErrorThreshold)
+						PrintFormat(MENU_SIZE, RED, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
+					else
+						PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
+					
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Your USB drive is running");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "low on free space. There ");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "should be enough space for");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "about %d more replays.", 
 							(int)usb_replays_left);
+				}
+				else
+				{
+					PrintFormat(MENU_SIZE, GREEN, MENU_POS_X, SettingY(11), "READY");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "USB drive ready to write");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "Slippi replays.");
 				}
 			}
 		}
@@ -1848,8 +1853,21 @@ bool Menu_DeviceSelection(void)
 		if (FPAD_OK(0))
 		{
 			int ret = Menu_GameSelection();
-			if (ret & 2) res = true;
-			if (ret & 1) break;
+			if (ret == 0)
+			{
+				// We provide error messages when USB file write is set but no
+				// USB drive is ready and advise the user to return to device
+				// selection to check again.
+				// Therefore attempt to Mount USB when returning to device
+				// selection to keep error messages up to date.
+				ShowMessageScreen("Checking storage devices...");
+				MountDevice(DEV_USB);
+			}
+			else
+			{
+				if (ret & 2) res = true;
+				if (ret & 1) break;
+			}
 			redraw = true;
 		}
 		// Return to the loader
