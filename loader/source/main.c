@@ -1091,7 +1091,7 @@ int main(int argc, char **argv)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*9, "Mounting USB/SD device...");
 			if(abs(STATUS_LOADING) > STORAGE_MOUNT && abs(STATUS_LOADING) < 20)
 				PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X, MENU_POS_Y + 20*9, "Mounting USB/SD device... Done!");
-			if(STATUS_LOADING == -3 && (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE))) {
+			if(STATUS_LOADING == -3 && (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS))) {
 				// Special error message when file writes are enabled
 				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*9, "SLP File Writing requires BOTH SD and USB devices");
 				PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*10, "Plug devices into both slots and try again");

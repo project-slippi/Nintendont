@@ -118,4 +118,9 @@ static inline u32 ConfigGetMeleeCodeValue(int identifier)
 	return ncfg->MeleeCodeOptions[identifier];
 }
 
+static inline u32 ConfigGetReplaysLED(void)
+{
+	return ncfg->ReplaysLED;
+}
+
 #endif

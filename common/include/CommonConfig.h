@@ -5,10 +5,11 @@
 #include "Metadata.h"
 #include "../config/MeleeCodes.h"
 
-#define NIN_CFG_VERSION		0x0000000C
+#define NIN_CFG_VERSION		0x0000000D
 
 #define NIN_CFG_MAXPAD 4
 
+// IF YOU CHANGE THE SIZE OF THIS struct YOU MUST BUMP NIN_CFG_VERSION AND UPDATE LoadNinCFG.
 typedef struct NIN_CFG
 {
 	unsigned int		Magicbytes;		// 0x01070CF6
@@ -24,6 +25,7 @@ typedef struct NIN_CFG
 	unsigned char		Unused;
 	unsigned int		UseUSB;			// 0 for SD, 1 for USB
 	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID + 1]; // IDs are 0 indexed so add 1
+	unsigned int		ReplaysLED; // 0: On, 1: Stealth, 2: None
 } NIN_CFG;
 
 enum ninconfigbitpos
@@ -44,7 +46,7 @@ enum ninconfigbitpos
 	NIN_CFG_BIT_MC_MULTI	= (11),
 	NIN_CFG_BIT_SKIP_IPL	= (12), // Disabled in Slippi Nintendont
 	NIN_CFG_BIT_NETWORK		= (13),
-	NIN_CFG_BIT_SLIPPI_FILE_WRITE	= (14),
+	NIN_CFG_BIT_SLIPPI_REPLAYS	= (14),
 	NIN_CFG_BIT_SLIPPI_PORT_A = (15),
 
 	// Internal kernel settings.
@@ -68,7 +70,7 @@ enum ninconfig
 	NIN_CFG_MC_MULTI	= (1<<NIN_CFG_BIT_MC_MULTI),
 	NIN_CFG_SKIP_IPL	= (1<<NIN_CFG_BIT_SKIP_IPL),
 	NIN_CFG_NETWORK 	= (1<<NIN_CFG_BIT_NETWORK),
-	NIN_CFG_SLIPPI_FILE_WRITE 	= (1<<NIN_CFG_BIT_SLIPPI_FILE_WRITE),
+	NIN_CFG_SLIPPI_REPLAYS 	= (1<<NIN_CFG_BIT_SLIPPI_REPLAYS),
 	NIN_CFG_SLIPPI_PORT_A 	= (1<<NIN_CFG_BIT_SLIPPI_PORT_A),
 
 	NIN_CFG_MC_SLOTB	= (1<<NIN_CFG_BIT_MC_SLOTB),
@@ -92,7 +94,9 @@ enum ninextrasettings
 enum ninslippisettings
 {
 	NIN_SLIPPI_NETWORKING,
-	NIN_SLIPPI_FILE_WRITE,
+	NIN_SLIPPI_REPLAYS,
+	NIN_SLIPPI_REPLAYS_LED,
+	NIN_SLIPPI_BLANK_0,
 	NIN_SLIPPI_PORT_A,
 	NIN_SLIPPI_CUSTOM_CODES,
 	NIN_SLIPPI_BLANK_1,

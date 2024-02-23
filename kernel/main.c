@@ -189,7 +189,7 @@ int _main( int argc, char *argv[] )
  */
 	BootStatus(STORAGE_INIT, 0, 0);
 
-	u32 SlippiFileWrite = ConfigGetConfig(NIN_CFG_SLIPPI_FILE_WRITE);
+	u32 SlippiFileWrite = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS);
 	u32 UseUSB = ConfigGetUseUSB(); // Returns 0 for SD, 1 for USB
 	SetDiskFunctions(UseUSB);
 
@@ -333,7 +333,8 @@ int _main( int argc, char *argv[] )
 	BootStatus(CONFIG_INIT, s_size, s_cnt);
 	ConfigInit();
 
-	access_led = ConfigGetConfig(NIN_CFG_LED);
+	bool slippi_replays_led = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS) && ConfigGetReplaysLED() < 2;
+	access_led = ConfigGetConfig(NIN_CFG_LED) && !slippi_replays_led;
 
 	if (ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A))
 		slippi_use_port_a = 1;
@@ -586,9 +587,15 @@ int _main( int argc, char *argv[] )
 		BTUpdateRegisters();
 		HIDUpdateRegisters(0);
 
-		if (SlippiFileWrite == 1 && !UseUSB)
-			// Must consistently call to enable USB hotswap
-			USBStorage_UpdateRegisters_MainThread();
+		if (SlippiFileWrite == 1)
+		{
+			SlippiFileWriterUpdateRegisters();
+			if (!UseUSB)
+			{
+				// Must consistently call to enable USB hotswap
+				USBStorage_UpdateRegisters_MainThread();
+			}
+		}
 
 		// Native SI is always enabled in Slippi Nintendont
 		//if (DisableSIPatch == 0) SIUpdateRegisters();
@@ -694,7 +701,7 @@ int _main( int argc, char *argv[] )
 	}
 
 	// make sure drive led is off before quitting
-	if( access_led ) clear32(HW_GPIO_OUT, GPIO_SLOT_LED);
+	if( access_led || slippi_replays_led ) clear32(HW_GPIO_OUT, GPIO_SLOT_LED);
 
 	// make sure we set that back to the original
 	write32(HW_PPCSPEED, ori_ppcspeed);

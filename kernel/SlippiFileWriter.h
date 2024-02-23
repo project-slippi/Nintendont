@@ -4,6 +4,7 @@
 #include "global.h"
 
 void SlippiFileWriterInit();
+void SlippiFileWriterUpdateRegisters();
 void SlippiFileWriterShutdown();
 
 #endif

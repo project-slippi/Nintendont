@@ -322,14 +322,25 @@ bool LoadNinCFG(void)
 	f_close(&cfg);
 
 	switch( ncfg->Version ) {
-		case 2:
-			if (BytesRead != 540)
+		case 8:
+			if (BytesRead != 292) // 1.2
 				ConfigLoaded = false;
 			break;
-
-		default:
-			if (BytesRead != sizeof(NIN_CFG))
+		case 9:
+			if (BytesRead != 292) // 1.4, 1.5, 1.6, 1.8
 				ConfigLoaded = false;
+			break;
+		case 0xC:
+			if (BytesRead != 316 && // 1.9.0, 1.9.1, 1.9.2
+				BytesRead != 320) // 1.9.3, 1.9.4, 1.10.1, 1.10.2, 1.11.0, 1.11.1
+				ConfigLoaded = false;
+			break;
+		case 0xD:
+			if (BytesRead != sizeof(NIN_CFG)) // 324
+				ConfigLoaded = false;
+			break;
+		default:
+			ConfigLoaded = false;
 			break;
 	}
 
@@ -430,42 +441,6 @@ bool IsGCGame(u8 *Buffer)
 
 void UpdateNinCFG()
 {
-	if (ncfg->Version == 2)
-	{	//251 blocks, used to be there
-		ncfg->Unused = 0x2;
-		ncfg->Version = 3;
-	}
-	if (ncfg->Version == 3)
-	{	//new memcard setting space
-		ncfg->MemCardBlocks = ncfg->Unused;
-		ncfg->VideoScale = 0;
-		ncfg->VideoOffset = 0;
-		ncfg->Version = 4;
-	}
-	if (ncfg->Version == 4)
-	{	//Option got changed so not confuse it
-		ncfg->Version = 5;
-	}
-	if (ncfg->Version == 5)
-	{	//New Video Mode option
-		ncfg->VideoMode &= ~NIN_VID_PATCH_PAL50;
-		ncfg->Version = 6;
-	}
-	if (ncfg->Version == 6)
-	{	//New flag, disabled by default
-		ncfg->Version = 7;
-	}
-	if (ncfg->Version == 7)
-	{	// Wiimote CC Rumble, disabled by default;
-		// don't skip IPL by default.
-		//ncfg->Config &= ~NIN_CFG_CC_RUMBLE;
-		ncfg->Config &= ~NIN_CFG_SKIP_IPL;
-
-		// Use Slippi on port B by default
-		ncfg->Config &= ~NIN_CFG_SLIPPI_PORT_A;
-
-		ncfg->Version = 8;
-	}
 	if (ncfg->Version == 8)
 	{
 		// shift bits at indicies 9 - 16 by 2 to make room
@@ -475,6 +450,24 @@ void UpdateNinCFG()
 		ncfg->Config = (bitsToShift << 2) | bitsToKeep;
 
 		ncfg->Version = 9;
+	}
+	if (ncfg->Version == 9)
+	{
+		switch (ncfg->MeleeCodeOptions[0])
+		{
+			case 1: // UCF
+			case 2: // Toggle
+				ncfg->MeleeCodeOptions[0] = 2; // UCF
+				break;
+			default:
+				ncfg->MeleeCodeOptions[0] = 1; // Off
+		}
+		ncfg->Version = 0xC;
+	}
+	if (ncfg->Version == 0xC)
+	{
+		// 0 defaults are fine
+		ncfg->Version = 0xD;
 	}
 }
 

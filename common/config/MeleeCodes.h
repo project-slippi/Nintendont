@@ -21,6 +21,8 @@
 
 // Indicates the maximum number possible for ID. This is important in case the line items change,
 // we don't want to persist setting values for a different line item
+// THIS AFFECTS sizeof(NIN_CFG).
+// IF YOU CHANGE THIS NUMBER, YOU MUST BUMP NIN_CFG_VERSION AND UPDATE LoadNinCFG.
 #define MELEE_CODES_MAX_ID 7
 
 #define MELEE_CODES_LINE_ITEM_COUNT 8
