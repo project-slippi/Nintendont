@@ -849,8 +849,9 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 				default: {
 					PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11), "[!] WRITE DEVICE FORMAT");
 					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Please format USB drive");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "as FAT, FAT32, or exFAT to");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "write Slippi replays.");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "as FAT32 or exFAT (exFAT");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "recommended) to write");
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "Slippi replays.");
 					usbStatusY = 16;
 					break;
 				}
