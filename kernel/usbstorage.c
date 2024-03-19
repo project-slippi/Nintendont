@@ -189,6 +189,8 @@ static s32 __send_cbw(important_storage_data *dev, u8 lun, u32 len, u8 flags, co
 	if(cbLen == 0 || cbLen > 16)
 		return IPC_EINVAL;
 
+	memset(cbw_buffer, 0, CBW_SIZE);
+
 	write32(((u32)cbw_buffer),bswap32(CBW_SIGNATURE));
 	write32(((u32)cbw_buffer)+4,bswap32(++dev->tag));
 	write32(((u32)cbw_buffer)+8,bswap32(len));
