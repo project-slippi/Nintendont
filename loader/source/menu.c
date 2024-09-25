@@ -183,10 +183,6 @@ static const char *desc_slippi_replays_led[] = {
 	"    Drive LED will stay lit as long",
 	"    as a replay device is inserted",
 	"    and working properly.",
-	"",
-	"   [No]",
-	"    Drive LED will not be used to",
-	"    indicate replay device status.",
 	NULL
 };
 static const char *desc_slippi_port_a[] = {
