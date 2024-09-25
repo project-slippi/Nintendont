@@ -40,13 +40,13 @@ u32 driveTimer;
 // flag for drive led timer
 bool driveTimerSet;
 
-// replays LED setting, 0: always on, 1: flash on insert and file end, 2: do not use
-u32 replaysLED;
+// replays LED setting
+bool replaysLED;
 
 void SlippiFileWriterInit()
 {
-	replaysLED = ConfigGetReplaysLED();
-	if (replaysLED < 2)
+	replaysLED = ConfigGetReplaysLED() == 0;
+	if (replaysLED)
 	{
 		// Move to a more appropriate place later
 		// Enables Drive LED
@@ -192,8 +192,6 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 
 	f_lseek(file, 11);
 	FRESULT fileWriteResult = f_write(file, &writtenByteCount, 4, &wrote);
-	if (replaysLED == 1 && fileWriteResult == FR_OK)
-		flashLED();
 	f_sync(file);
 }
 
@@ -241,9 +239,6 @@ static u32 SlippiHandlerThread(void *arg)
 					memReadPos = SlippiRestoreReadPos();
 
 					mounted = true;
-
-					if (replaysLED == 1)
-						flashLED();
 				}
 				else
 				{
@@ -284,7 +279,7 @@ static u32 SlippiHandlerThread(void *arg)
 				mdelay(LED_FLASH_TIME_MS - THREAD_CYCLE_TIME_MS - 100); // short enough so we can recover with running out of LED time.
 				continue;
 			}
-			else if (replaysLED == 0)
+			if (replaysLED)
 				flashLED();
 
 			hasFile = true;
@@ -294,7 +289,7 @@ static u32 SlippiHandlerThread(void *arg)
 
 		if (reader.lastReadResult.bytesRead == 0)
 		{
-			if (replaysLED == 0)
+			if (replaysLED)
 				flashLED();
 			continue;
 		}
@@ -305,7 +300,7 @@ static u32 SlippiHandlerThread(void *arg)
 		{
 			// we can reach this state if the user inserts a usb device during a game.
 			// skip over and don't write anything until we see the start of a new game
-			if (replaysLED == 0)
+			if (replaysLED)
 				flashLED();
 			memReadPos += reader.lastReadResult.bytesRead;
 			continue;
@@ -313,7 +308,7 @@ static u32 SlippiHandlerThread(void *arg)
 
 		UINT wrote;
 		FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
-		if (replaysLED == 0 && writeResult == FR_OK && wrote > 0)
+		if (replaysLED && writeResult == FR_OK && wrote > 0)
 			flashLED();
 		f_sync(&currentFile);
 

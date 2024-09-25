@@ -333,7 +333,7 @@ int _main( int argc, char *argv[] )
 	BootStatus(CONFIG_INIT, s_size, s_cnt);
 	ConfigInit();
 
-	bool slippi_replays_led = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS) && ConfigGetReplaysLED() < 2;
+	bool slippi_replays_led = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS) && ConfigGetReplaysLED() == 0;
 	access_led = ConfigGetConfig(NIN_CFG_LED) && !slippi_replays_led;
 
 	if (ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A))

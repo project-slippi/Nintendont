@@ -25,7 +25,7 @@ typedef struct NIN_CFG
 	unsigned char		Unused;
 	unsigned int		UseUSB;			// 0 for SD, 1 for USB
 	unsigned int		MeleeCodeOptions[MELEE_CODES_MAX_ID + 1]; // IDs are 0 indexed so add 1
-	unsigned int		ReplaysLED; // 0: On, 1: Stealth, 2: None
+	unsigned int		ReplaysLED; // 0: On, 1: Off
 } NIN_CFG;
 
 enum ninconfigbitpos

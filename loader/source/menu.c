@@ -183,11 +183,7 @@ static const char *desc_slippi_replays_led[] = {
 	"    Drive LED will stay lit as long",
 	"    as a replay device is inserted",
 	"    and working properly.",
-	"   [Stealth]",
-	"    Drive LED will flash when a",
-	"    replay device is inserted and",
-	"    when a replay is completed at the",
-	"    end of a game.",
+	"",
 	"   [No]",
 	"    Drive LED will not be used to",
 	"    indicate replay device status.",
@@ -1281,7 +1277,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 				break;
 			case NIN_SLIPPI_REPLAYS_LED:
 				ncfg->ReplaysLED++;
-				if (ncfg->ReplaysLED > 2)
+				if (ncfg->ReplaysLED > 1)
 					ncfg->ReplaysLED = 0;
 				break;
 			case NIN_SLIPPI_PORT_A:
@@ -1459,7 +1455,7 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 		{
 			// Slippi Replays LED
 			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
-					"%-18s:%-4s", "Slippi Replays LED", ncfg->ReplaysLED == 0 ? "Yes" : ncfg->ReplaysLED == 1 ? "Stealth" : "No");
+					"%-18s:%-4s", "Slippi Replays LED", ncfg->ReplaysLED == 0 ? "Yes" : "No");
 		}
 		ListLoopIndex += 2;
 
