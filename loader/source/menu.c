@@ -826,7 +826,7 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 			PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? GREEN : RED, MENU_POS_X+320+(24*10),
 					gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? "ON" : "OFF");
 
-			if ((ncfg->UseUSB == 0) && (usb_attached != 1)  && (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)))
+			if ((ncfg->UseUSB == 0) && (usb_attached != 1)  && (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)))
 			{
 				int usbStatusY;
 				switch (disk_status(ncfg->UseUSB ? DEV_SD : DEV_USB)) {
