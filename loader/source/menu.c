@@ -176,13 +176,11 @@ static const char *desc_slippi_replays[] = {
 	NULL
 };
 static const char *desc_slippi_replays_led[] = {
-	"How Drive LED should be used to",
-	"indicate replay device status",
-	"",
-	"   [Yes]",
-	"    Drive LED will stay lit as long",
-	"    as a replay device is inserted",
-	"    and working properly.",
+    "Use the Disc Drive LED to",
+    "indicate replay device status.",
+    "The LED will remain on while",
+    "the replay device is inserted",
+    "and working properly.",
 	NULL
 };
 static const char *desc_slippi_port_a[] = {
