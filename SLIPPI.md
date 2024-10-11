@@ -24,8 +24,8 @@ Slippi Nintendont supports booting Melee from USB/SD card.
 Booting Melee from the disc drive _should_ also work, but this is currently
 un-tested and not fully supported.
 
-_All storage devices must be formatted with a FAT32 filesystem._ In order to boot
-from the Homebrew Channel, some storage device must be prepared with the
+_Replay/ISO devices must be formatted with a FAT32 or exFAT (recommended) filesystem._ In order to boot
+from the Homebrew Channel, some storage device must be formatted as FAT32 and prepared with the
 following files:
 
 ```
