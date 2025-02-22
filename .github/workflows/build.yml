@@ -59,13 +59,13 @@ jobs:
           cp -r ./ci/* ./release-artifact/apps/
       - name: "Publish Loader"
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: loader-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
           path: "./artifact/"
       - name: "Publish Release Ready Loader"
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}
           path: "./release-artifact/"
