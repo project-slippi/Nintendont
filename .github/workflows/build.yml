@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       ignore:
-          description: 'ignore'
-          required: false
-          default: 'ignore'
+        description: "ignore"
+        required: false
+        default: "ignore"
   push:
-    branches: 
+    branches:
       - slippi
       - ci
   pull_request:
@@ -17,16 +17,16 @@ on:
     branches:
       - "**"
 
-jobs:  
+jobs:
   ubuntu64:
     name: "Loader Build"
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: 'Fetch Git Tags'
+      - name: "Fetch Git Tags"
         shell: bash
         if: success()
         run: |
