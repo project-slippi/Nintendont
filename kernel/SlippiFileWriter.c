@@ -240,6 +240,14 @@ static u32 SlippiHandlerThread(void *arg)
 					memReadPos = SlippiRestoreReadPos();
 
 					mounted = true;
+
+					/*
+					dbgprintf("fs_type %d, n_fats %d, n_rootdir %d\r\n", devices[1]->fs_type, devices[1]->n_fats, devices[1]->n_rootdir);
+					dbgprintf("csize %d, ssize %d, last_clst %ld\r\n", devices[1]->csize, devices[1]->ssize, devices[1]->last_clst);
+					dbgprintf("free_clst %ld, n_fatent %ld, fsize %ld\r\n", devices[1]->free_clst, devices[1]->n_fatent, devices[1]->fsize);
+					dbgprintf("volbase %ld, fatbase %ld, dirbase %ld\r\n", devices[1]->volbase, devices[1]->fatbase, devices[1]->dirbase);
+					dbgprintf("database %ld\r\n", devices[1]->database);
+					*/
 				}
 				else
 				{
