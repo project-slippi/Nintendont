@@ -1862,6 +1862,7 @@ bool Menu_DeviceSelection(void)
 				// Therefore attempt to Mount USB when returning to device
 				// selection to keep error messages up to date.
 				ShowMessageScreen("Checking storage devices...");
+				UnmountDevice(DEV_USB);
 				MountDevice(DEV_USB);
 			}
 			else
