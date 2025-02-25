@@ -851,14 +851,6 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 		}
 	}
 
-	/*
-	PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(11), "fs_type %d, n_fats %d, n_rootdir %d", devices[1]->fs_type, devices[1]->n_fats, devices[1]->n_rootdir);
-	PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "csize %d, ssize %d, last_clst %ld", devices[1]->csize, devices[1]->ssize, devices[1]->last_clst);
-	PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "free_clst %ld, n_fatent %ld, fsize %ld", devices[1]->free_clst, devices[1]->n_fatent, devices[1]->fsize);
-	PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "volbase %ld, fatbase %ld, dirbase %ld", devices[1]->volbase, devices[1]->fatbase, devices[1]->dirbase);
-	PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "database %ld", devices[1]->database);
-	*/
-
 	if(ctx->games.gamecount && (ctx->games.scrollX + ctx->games.posX) >= 0 
 		&& (ctx->games.scrollX + ctx->games.posX) < ctx->games.gamecount)
 	{
