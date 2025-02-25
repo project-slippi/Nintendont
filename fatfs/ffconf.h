@@ -15,13 +15,7 @@
 /  and optional writing functions as well. */
 
 
-#ifdef __PPC__
-// Nintendont loader: Enable all functionality.
 #define _FS_MINIMIZE	0
-#else /* !__PPC__ */
-// Nintendont kernel: Use minimize level 2.
-#define _FS_MINIMIZE	0
-#endif /* __PPC__ */
 /* This option defines minimization level to remove some basic API functions.
 /
 /   0: All basic functions are enabled.
