@@ -43,6 +43,8 @@ bool driveTimerSet;
 // replays LED setting
 bool replaysLED;
 
+extern FATFS *devices[2];
+
 void SlippiFileWriterInit()
 {
 	replaysLED = ConfigGetReplaysLED() == 0;
@@ -207,7 +209,6 @@ static u32 SlippiHandlerThread(void *arg)
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
-	FATFS device;
 	bool failedToMount = false;
 	bool hasFile = false;
 	bool mounted = true;
@@ -232,13 +233,21 @@ static u32 SlippiHandlerThread(void *arg)
 			}
 			else if (!mounted && !failedToMount)
 			{
-				if (f_mount_char(&device, "usb:", 1) == FR_OK)
+				if (f_mount_char(devices[1], "usb:", 1) == FR_OK)
 				{
 					// ignore anything already in the buffer. users should not expect to record a
 					// game if the usb device is inserted after game start.
 					memReadPos = SlippiRestoreReadPos();
 
 					mounted = true;
+
+					/*
+					dbgprintf("fs_type %d, n_fats %d, n_rootdir %d\r\n", devices[1]->fs_type, devices[1]->n_fats, devices[1]->n_rootdir);
+					dbgprintf("csize %d, ssize %d, last_clst %ld\r\n", devices[1]->csize, devices[1]->ssize, devices[1]->last_clst);
+					dbgprintf("free_clst %ld, n_fatent %ld, fsize %ld\r\n", devices[1]->free_clst, devices[1]->n_fatent, devices[1]->fsize);
+					dbgprintf("volbase %ld, fatbase %ld, dirbase %ld\r\n", devices[1]->volbase, devices[1]->fatbase, devices[1]->dirbase);
+					dbgprintf("database %ld\r\n", devices[1]->database);
+					*/
 				}
 				else
 				{

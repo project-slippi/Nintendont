@@ -171,7 +171,7 @@ DRESULT disk_write_usb (
 }
 
 
-DRESULT disk_read_both (
+DRESULT disk_read (
 	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
 	BYTE *buff,		/* Data buffer to store read data */
 	DWORD sector,	/* Sector address in LBA */
@@ -187,7 +187,7 @@ DRESULT disk_read_both (
 	return RES_PARERR;
 }
 
-DRESULT disk_write_both (
+DRESULT disk_write (
 	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
 	const BYTE *buff,	/* Data to be written */
 	DWORD sector,		/* Sector address in LBA */
@@ -250,17 +250,4 @@ DWORD get_fattime(void)
 		| ((DWORD)tmp->tm_min << 5)
 		| ((DWORD)tmp->tm_sec >> 1);
 	return ret;
-}
-
-
-/*-----------------------------------------------------------------------*/
-/* Nintendont kernel: Device type selection.                             */
-/*-----------------------------------------------------------------------*/
-
-DiskReadFunc disk_read;
-DiskWriteFunc disk_write;
-void SetDiskFunctions(DWORD usb)
-{
-	disk_read = disk_read_both;
-	disk_write = disk_write_both;
 }

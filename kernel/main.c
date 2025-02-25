@@ -82,7 +82,7 @@ extern struct ipcmessage DI_CallbackMsg;
 extern u32 DI_MessageQueue;
 
 // Used for storage device [un]mounting (0 == SD, 1 == USB)
-static FATFS *devices[2];
+FATFS *devices[2];
 
 // Device names
 static const WCHAR fatSdName[] = {'s', 'd', ':', 0};
@@ -191,7 +191,6 @@ int _main( int argc, char *argv[] )
 
 	u32 SlippiFileWrite = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS);
 	u32 UseUSB = ConfigGetUseUSB(); // Returns 0 for SD, 1 for USB
-	SetDiskFunctions(UseUSB);
 
 
 	bool shouldBootUsb = UseUSB || SlippiFileWrite;
@@ -420,6 +419,14 @@ int _main( int argc, char *argv[] )
 	mdelay(1000); //wait before hw flag changes
 	dbgprintf("Kernel Start\r\n");
 	dbgprintf("Main Thread ID: %d\r\n", thread_get_id());
+
+	/*
+	dbgprintf("fs_type %d, n_fats %d, n_rootdir %d\r\n", devices[1]->fs_type, devices[1]->n_fats, devices[1]->n_rootdir);
+	dbgprintf("csize %d, ssize %d, last_clst %ld\r\n", devices[1]->csize, devices[1]->ssize, devices[1]->last_clst);
+	dbgprintf("free_clst %ld, n_fatent %ld, fsize %ld\r\n", devices[1]->free_clst, devices[1]->n_fatent, devices[1]->fsize);
+	dbgprintf("volbase %ld, fatbase %ld, dirbase %ld\r\n", devices[1]->volbase, devices[1]->fatbase, devices[1]->dirbase);
+	dbgprintf("database %ld\r\n", devices[1]->database);
+	*/
 
 	u32 Now = read32(HW_TIMER);
 	u32 PADTimer = Now;
