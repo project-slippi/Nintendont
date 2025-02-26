@@ -44,10 +44,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "ff_utf8.h"
 #include "ShowGameInfo.h"
 
-// Storage devices. (defined in global.c)
-// 0 == SD, 1 == USB
-extern FATFS *devices[2];
-
 static u8 meleeCodeSelectionIndices[MELEE_CODES_LINE_ITEM_COUNT];
 static u8 devState = DEV_OK;
 extern NIN_CFG* ncfg;
