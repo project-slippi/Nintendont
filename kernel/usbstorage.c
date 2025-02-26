@@ -393,7 +393,7 @@ bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer, __mounted_device.sector_size, cmd, sizeof(cmd), 0, &status, NULL);
+	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer,  numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 0, &status, NULL);
 	if(retval > 0 && status != 0)
 		retval = USBSTORAGE_ESTATUS;
 
