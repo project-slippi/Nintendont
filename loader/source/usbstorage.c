@@ -567,21 +567,6 @@ typedef struct
 
 s32 USBStorageOGC_Close(usbstorage_handle *dev)
 {
-	if(dev != NULL)
-	{
-		important_storage_data *d = (important_storage_data*)0x932C1000;
-		d->sector_size = __sector_size;
-		d->sector_count = __sector_count;
-		d->lun = __lun;
-		d->vid = __vid;
-		d->pid = __pid;
-		d->tag = dev->tag;
-		d->interface = dev->interface;
-		d->usb_fd = dev->usb_fd;
-		d->ep_in = dev->ep_in;
-		d->ep_out = dev->ep_out;
-		DCFlushRange((void*)0x932C1000, sizeof(important_storage_data));
-	}
 	__mounted = false;
 	__lun = 0;
 	__vid = 0;
@@ -1021,6 +1006,30 @@ void USBStorageOGC_Deinitialize()
 	__usbstorage_Shutdown();
 	LWP_CloseQueue(__usbstorage_waitq);
 	__inited = false;
+}
+
+void USBStorageOGC_SyncImportantStorageData()
+{
+	important_storage_data *d = (important_storage_data*)0x932C1000;
+	if(__vid != 0 || __pid != 0)
+	{
+		d->sector_size = __sector_size;
+		d->sector_count = __sector_count;
+		d->lun = __lun;
+		d->vid = __vid;
+		d->pid = __pid;
+		d->tag = __usbfd.tag;
+		d->interface = __usbfd.interface;
+		d->usb_fd = __usbfd.usb_fd;
+		d->ep_in = __usbfd.ep_in;
+		d->ep_out = __usbfd.ep_out;
+	}
+	else
+	{
+		d->vid = 0;
+		d->pid = 0;
+	}
+	DCFlushRange((void*)0x932C1000, sizeof(important_storage_data));
 }
 
 s32 USBStorageOGC_ioctl(int request, ...)

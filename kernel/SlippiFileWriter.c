@@ -45,17 +45,9 @@ bool replaysLED;
 
 extern FATFS *devices[2];
 
-void SlippiFileWriterInit()
+void SlippiFileWriterInit(bool led)
 {
-	replaysLED = ConfigGetReplaysLED() == 0;
-	if (replaysLED)
-	{
-		// Move to a more appropriate place later
-		// Enables Drive LED
-		set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
-		clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
-		clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
-	}
+	replaysLED = led;
 
 	Slippi_Thread = do_thread_create(
 		SlippiHandlerThread,
@@ -211,8 +203,8 @@ static u32 SlippiHandlerThread(void *arg)
 
 	bool failedToMount = false;
 	bool hasFile = false;
-	bool mounted = true;
 	const bool use_usb = ConfigGetUseUSB() != 1;
+	bool mounted = use_usb ? USBStorage_IsInserted_SlippiThread() : true;
 
 	while (1)
 	{

@@ -30,6 +30,7 @@ CACHE *cache[_VOLUMES] = {NULL, NULL};
 
 //from usbstorage.c
 extern u32 __sector_size;	// USB sector size. (Not known until device init.)
+extern void USBStorageOGC_SyncImportantStorageData();
 extern void USBStorageOGC_Deinitialize();
 
 /*-----------------------------------------------------------------------*/
@@ -71,6 +72,9 @@ DSTATUS disk_initialize (
 	if (!disk_isInit[pdrv]) {
 		if (!driver[pdrv]->startup())
 			return STA_NOINIT;
+
+		// Device initialized.
+		disk_isInit[pdrv] = true;
 	}
 	if (!driver[pdrv]->isInserted())
 		return STA_NODISK;
@@ -95,9 +99,6 @@ DSTATUS disk_initialize (
 	// NOTE: endOfPartition isn't usable, since this is a
 	// per-disk cache, not per-partition. Use UINT_MAX-1.
 	cache[pdrv] = _FAT_cache_constructor(4, 64, driver[pdrv], UINT_MAX-1, sectorSize[pdrv]);
-
-	// Device initialized.
-	disk_isInit[pdrv] = true;
 	return 0;
 }
 
@@ -243,6 +244,10 @@ DRESULT disk_shutdown (BYTE pdrv)
 		_FAT_cache_destructor(cache[pdrv]);
 		cache[pdrv] = NULL;
 	}
+
+	// Need to sync this before shut down.
+	if (pdrv == DEV_USB)
+		USBStorageOGC_SyncImportantStorageData();
 
 	// Shut down the device.
 	driver[pdrv]->shutdown();

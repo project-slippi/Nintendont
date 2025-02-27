@@ -201,7 +201,7 @@ int _main( int argc, char *argv[] )
 	{
 		ret = USBStorage_Startup(!UseUSB);
 		dbgprintf("USB:Drive size: %dMB SectorSize:%d\r\n", usb_s_cnt / 1024 * usb_s_size / 1024, usb_s_size);
-		if(ret != 1)
+		if(ret != 0)
 		{
 			dbgprintf("USB Device Init failed:%d\r\n", ret );
 			BootStatusError(-2, ret);
@@ -252,7 +252,7 @@ int _main( int argc, char *argv[] )
 	{
 		devices[1] = (FATFS*)malloca( sizeof(FATFS), 32 );
 		res = f_mount( devices[1], fatUsbName, 1 );
-		if( res != FR_OK )
+		if( res != FR_OK && UseUSB )
 		{
 			dbgprintf("USB ES:f_mount() failed:%d\r\n", res );
 			BootStatusError(-3, res);
@@ -332,8 +332,14 @@ int _main( int argc, char *argv[] )
 	BootStatus(CONFIG_INIT, s_size, s_cnt);
 	ConfigInit();
 
-	bool slippi_replays_led = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS) && ConfigGetReplaysLED() == 0;
+	bool slippi_replays_led = SlippiFileWrite && ConfigGetReplaysLED() == 0;
 	access_led = ConfigGetConfig(NIN_CFG_LED) && !slippi_replays_led;
+	if (access_led || slippi_replays_led)
+	{
+		set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
+		clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
+		clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
+	}
 
 	if (ConfigGetConfig(NIN_CFG_SLIPPI_PORT_A))
 		slippi_use_port_a = 1;
@@ -405,7 +411,7 @@ int _main( int argc, char *argv[] )
 	SlippiMemoryInit();
 
 	if (SlippiFileWrite == 1)
-		SlippiFileWriterInit();
+		SlippiFileWriterInit(slippi_replays_led);
 
 /* KERNEL_RUNNING BOOT STAGE
  * Signal the loader to start booting a game in PPC-world.
@@ -429,13 +435,6 @@ int _main( int argc, char *argv[] )
 	USBReadTimer = Now;
 	u32 Reset = 0;
 	bool SaveCard = false;
-
-	if (access_led)
-	{
-		set32(HW_GPIO_ENABLE, GPIO_SLOT_LED);
-		clear32(HW_GPIO_DIR, GPIO_SLOT_LED);
-		clear32(HW_GPIO_OWNER, GPIO_SLOT_LED);
-	}
 
 	// Enable the sensor bar (?)
 	set32(HW_GPIO_ENABLE, GPIO_SENSOR_BAR);

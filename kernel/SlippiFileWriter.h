@@ -3,7 +3,7 @@
 
 #include "global.h"
 
-void SlippiFileWriterInit();
+void SlippiFileWriterInit(bool led);
 void SlippiFileWriterUpdateRegisters();
 void SlippiFileWriterShutdown();
 

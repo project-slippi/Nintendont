@@ -118,7 +118,7 @@ static inline s32 __usb_interrupt_bulk_message(s32 device_id,u8 ioctl,u8 bEndpoi
 s32 USB_Initialize()
 {
 	if (ven_fd < 0)
-		ven_fd = IOS_Open(__ven_path, IPC_OPEN_NONE);
+		ven_fd = IOS_Open(__ven_path, 0 /* handle ID */);
 
 	return ven_fd;
 }

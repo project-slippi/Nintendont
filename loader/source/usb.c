@@ -589,7 +589,7 @@ s32 USB_OGC_Initialize()
 	if(hId<0) return IPC_ENOMEM;
 
 	if (ven_host==NULL) {
-		s32 ven_fd = IOS_Open(__ven_path, IPC_OPEN_NONE);
+		s32 ven_fd = IOS_Open(__ven_path, 0 /* handle ID */);
 		if (ven_fd>=0) {
 			ven_host = (struct _usbv5_host*)iosAlloc(hId, sizeof(*ven_host));
 			if (ven_host==NULL) {

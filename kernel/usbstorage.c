@@ -323,7 +323,7 @@ void USBStorage_Open()
 	usb_s_size = __mounted_device.sector_size;
 	usb_s_cnt = __mounted_device.sector_count;
 
-	__mounted = true;
+	__mounted = __mounted_device.vid != 0 || __mounted_device.pid != 0;
 
 	if(transferbuffer == NULL)
 		transferbuffer = (u8*)malloca(MAX_TRANSFER_SIZE_V5, 32);
@@ -345,14 +345,14 @@ static u32 __ven_change_thread()
 	return 0;
 }
 
-bool USBStorage_Startup(bool hotswap)
+s32 USBStorage_Startup(bool hotswap)
 {
 	if(__inited)
-		return true;
+		return 0;
 
 	ven_fd = USB_Initialize();
 	if(ven_fd < 0)
-		return false;
+		return ven_fd;
 
 	if(cbw_buffer == NULL)
 		cbw_buffer = (u8*)malloca(32,32);
@@ -370,7 +370,7 @@ bool USBStorage_Startup(bool hotswap)
 	}
 
 	__inited = true;
-	return __inited;
+	return 0;
 }
 
 bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
@@ -569,8 +569,6 @@ bool __has_device_after_change()
 		if (AttachedDevices[i].vid == 0x0b95 && AttachedDevices[i].pid == 0x7720)
 			continue;
 
-		// dbgprintf("USBStorage: fd: %d, vid: 0x%04X, pid: 0x%04X\n", AttachedDevices[i].device_id, AttachedDevices[i].vid, AttachedDevices[i].pid);
-
 		// see libogc/usb.c: USBV5_SuspendResume
 		suspend_resume_buf[0] = AttachedDevices[i].device_id;
 		suspend_resume_buf[2] = 1;
@@ -600,7 +598,6 @@ bool __has_device_after_change()
 			uid = (usb_interfacedesc*)next;
 			next += (uid->bLength+3)&~3;
 
-			// dbgprintf("USBStorage: bInterfaceClass: 0x%02X, bInterfaceProtocol: 0x%02X, bNumEndpoints: %d\n", uid->bInterfaceClass, uid->bInterfaceProtocol, uid->bNumEndpoints);
 			if (uid->bInterfaceClass == USB_CLASS_MASS_STORAGE && uid->bInterfaceProtocol == MASS_STORAGE_BULK_ONLY && uid->bNumEndpoints >= 2)
 			{
 				u16 extra_size = __find_next_endpoint(next, get_dev_params_out + GETDEVPARAMS_OUT_SIZE - next, 3);
@@ -647,17 +644,6 @@ bool __has_device_after_change()
 						usb_s_size = __mounted_device.sector_size;
 						usb_s_cnt = __mounted_device.sector_count;
 						__mounted = true;
-
-						/*
-						dbgprintf(
-							"USBStorage: sector_count: %d, sector_size: %d, lun: %d, ep_out: 0x%02X, ep_in: 0x%02X, interface: %d\n",
-							__mounted_device.sector_count,
-							__mounted_device.sector_size,
-							__mounted_device.lun,
-							__mounted_device.ep_out,
-							__mounted_device.ep_in,
-							__mounted_device.interface);
-						*/
 
 						udelay(10000);
 						return true;

@@ -26,7 +26,7 @@ typedef struct {
    size_t          data_length;
 } raw_device_command;
 
-bool USBStorage_Startup(bool hotswap);
+s32 USBStorage_Startup(bool hotswap);
 bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer);
 bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer);
 void USBStorage_Shutdown(void);
