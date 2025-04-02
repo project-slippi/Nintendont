@@ -1011,7 +1011,7 @@ void USBStorageOGC_Deinitialize()
 void USBStorageOGC_SyncImportantStorageData()
 {
 	important_storage_data *d = (important_storage_data*)0x932C1000;
-	if(__vid != 0 || __pid != 0)
+	if(__mounted)
 	{
 		d->sector_size = __sector_size;
 		d->sector_count = __sector_count;
