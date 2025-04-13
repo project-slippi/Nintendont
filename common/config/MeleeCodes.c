@@ -191,6 +191,7 @@ static const char *modsDescription[] = {
 	"    Neutral Spawns",
 	"    Hide tags when invisible",
 	"    Preserve tag in rotation",
+	"    Freeze Glitch Fix",
 	"",
 	"  [Tournament]",
 	"    D-Pad Rumble",
