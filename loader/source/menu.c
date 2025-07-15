@@ -770,8 +770,6 @@ static bool Menu_GameSelection_InputHandler(MenuCtx *ctx)
 /* Menu_GameSelection_Redraw()
  * Redraw the game selection menu.
  */
-extern u32 usb_replays_left;
-extern u32 usb_attached;
 static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 {
 	u32 i;
@@ -824,26 +822,6 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+320+(17*10), gamelist_y, "REPLAY: ");
 			PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? GREEN : RED, MENU_POS_X+320+(24*10),
 					gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? "ON" : "OFF");
-
-			// Warn the user if they're running low on USB disk space
-			if ((usb_attached == 1) && (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)))
-			{
-				int lowUsbWarnThreshold = 500;
-				int lowUsbErrorThreshold = 50;
-
-				if ((usb_replays_left < lowUsbWarnThreshold) && (usb_replays_left > lowUsbErrorThreshold))
-					PrintFormat(MENU_SIZE, ORANGE, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
-				if (usb_replays_left <= lowUsbErrorThreshold)
-					PrintFormat(MENU_SIZE, RED, MENU_POS_X, SettingY(11),"[!] WARNING, LOW USB SPACE");
-
-				if (usb_replays_left < lowUsbWarnThreshold) {
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(12), "Your USB drive is running");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(13), "low on free space. There ");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(14), "should be enough space for");
-					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X, SettingY(15), "about %d more replays.", 
-							(int)usb_replays_left);
-				}
-			}
 		}
 	}
 
