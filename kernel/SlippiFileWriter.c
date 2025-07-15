@@ -121,10 +121,9 @@ void writeHeader(FIL *file)
 
 	u32 wrote;
 	f_write(file, header, sizeof(header), &wrote);
-	f_sync(file);
 }
 
-void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
+FRESULT completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 {
 	u8 footer[FOOTER_BUFFER_LENGTH];
 	u32 writePos = 0;
@@ -181,12 +180,16 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 
 	// Write footer
 	u32 wrote;
-	f_write(file, footer, writePos, &wrote);
-	f_sync(file);
-
-	f_lseek(file, 11);
-	FRESULT fileWriteResult = f_write(file, &writtenByteCount, 4, &wrote);
-	f_sync(file);
+	FRESULT fRes = f_write(file, footer, writePos, &wrote);
+	if (fRes != FR_OK) {
+		return fRes;
+	}
+	fRes = f_lseek(file, 11);
+	if (fRes != FR_OK) {
+		return fRes;
+	}
+	fRes = f_write(file, &writtenByteCount, 4, &wrote);
+	return fRes;
 }
 
 static u32 SlippiHandlerThread(void *arg)
@@ -255,6 +258,13 @@ static u32 SlippiHandlerThread(void *arg)
 			// For specific errors, bytes will still be read. Not continueing to deal with those
 		}
 
+		if (reader.lastReadResult.bytesRead < 4096 && !(hasFile && reader.lastReadResult.isGameEnd))
+		{
+			if (replaysLED)
+				flashLED();
+			continue;
+		}
+
 		if (reader.lastReadResult.isNewGame)
 		{
 			// Create folder if it doesn't exist yet
@@ -272,19 +282,10 @@ static u32 SlippiHandlerThread(void *arg)
 				mdelay(LED_FLASH_TIME_MS - THREAD_CYCLE_TIME_MS - 100); // short enough so we can recover with running out of LED time.
 				continue;
 			}
-			if (replaysLED)
-				flashLED();
 
 			hasFile = true;
 			writtenByteCount = 0;
 			writeHeader(&currentFile);
-		}
-
-		if (reader.lastReadResult.bytesRead == 0)
-		{
-			if (replaysLED)
-				flashLED();
-			continue;
 		}
 
 		// dbgprintf("Bytes read: %d\r\n", reader.lastReadResult.bytesRead);
@@ -301,23 +302,25 @@ static u32 SlippiHandlerThread(void *arg)
 
 		UINT wrote;
 		FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
-		if (replaysLED && writeResult == FR_OK && wrote > 0)
-			flashLED();
-		f_sync(&currentFile);
-
 		if (wrote == 0)
 			continue;
 
-		// Only increment mem read position when the data is correctly written
+		// Only increment mem read position when some data is correctly written
 		memReadPos += wrote;
 		writtenByteCount += wrote;
 
-		if (reader.lastReadResult.isGameEnd)
+		if (reader.lastReadResult.isGameEnd && writeResult == FR_OK)
 		{
 			dbgprintf("Completing File...\r\n");
-			completeFile(&currentFile, &reader, writtenByteCount);
-			f_close(&currentFile);
+			FRESULT completeResult = completeFile(&currentFile, &reader, writtenByteCount);
+			FRESULT closeResult = f_close(&currentFile);
 			hasFile = false;
+			if (replaysLED && writeResult == FR_OK && completeResult == FR_OK && closeResult == FR_OK)
+				flashLED();
+		} else {
+			FRESULT syncResult = f_sync(&currentFile);
+			if (replaysLED && writeResult == FR_OK && syncResult == FR_OK)
+				flashLED();
 		}
 	}
 
