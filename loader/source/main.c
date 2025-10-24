@@ -532,7 +532,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	Initialise(argsboot);
+	Initialise();
 
 	//for BT.c
 	CONF_GetPadDevices((conf_pads*)0x932C0000);
@@ -543,10 +543,7 @@ int main(int argc, char **argv)
 
 	s32 fd;
 
-	// Preparing IOS58 Kernel...
-	if(argsboot == false)
-		ShowMessageScreen("Preparing IOS58 Kernel...");
-
+	//Preparing IOS58 Kernel...
 	//Disables MEMPROT for patches
 	write16(MEM_PROT, 0);
 
@@ -588,10 +585,7 @@ int main(int argc, char **argv)
 	memcpy( (void*)0x939F0348, ESBootPatch, sizeof(ESBootPatch) );
 	DCFlushRange( (void*)0x939F0348, sizeof(ESBootPatch) );
 
-	// Loading IOS58 Kernel...
-	if(argsboot == false)
-		ShowMessageScreen("Loading IOS58 Kernel...");
-
+	//Loading IOS58 Kernel...
 	//libogc still has that, lets close it
 	__ES_Close();
 	fd = IOS_Open( dev_es, 0 );
@@ -604,10 +598,7 @@ int main(int argc, char **argv)
 	//Disables MEMPROT for patches
 	write16(MEM_PROT, 0);
 
-	// Preparing Nintendont Kernel...
-	if(argsboot == false)
-		ShowMessageScreen("Preparing Nintendont Kernel...");
-
+	//Preparing Nintendont Kernel...
 	//inject nintendont thread
 	void *kernel_bin = NULL;
 	unsigned int kernel_bin_size = 0;
@@ -622,9 +613,6 @@ int main(int argc, char **argv)
 	DCFlushRange((void*)0x92FFFE00,kernelboot_bin_size);
 
 	//Loading Nintendont Kernel...
-	if(argsboot == false)
-		ShowMessageScreen("Loading Nintendont Kernel...");
-
 	//close in case this is wii vc
 	__ES_Close();
 	memset( STATUS, 0, 0x20 );
@@ -643,8 +631,6 @@ int main(int argc, char **argv)
 	fd = IOS_Open( dev_es, 0 );
 	IOS_IoctlvAsync(fd, 0x1F, 0, 0, &IOCTL_Buf, NULL, NULL);
 	//Waiting for Nintendont...
-	if(argsboot == false)
-		ShowMessageScreen("Waiting for Nintendont...");
 	while(1)
 	{
 		DCInvalidateRange( STATUS, 0x20 );
@@ -659,10 +645,6 @@ int main(int argc, char **argv)
 
 	gprintf("Nintendont at your service!\r\n%s\r\n", NIN_GIT_VERSION);
 	KernelLoaded = 1;
-
-	// Checking for storage devices...
-	if(argsboot == false)
-		ShowMessageScreen("Checking storage devices...");
 
 	// Initialize devices.
 	// TODO: Only mount the device Nintendont was launched from
@@ -686,9 +668,11 @@ int main(int argc, char **argv)
 	// aborting here.
 	if (!devices[DEV_SD] && !devices[DEV_USB])
 	{
-		ClearScreen();
 		gprintf("No FAT device found!\n");
-		PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, 232, "No FAT device found!");
+		InitialiseBg();
+		ShowMessageScreen("Checking storage devices...");
+		PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*20,
+			"No FAT device found!");
 		ExitToLoader(1);
 	}
 	// Seems like some programs start without any args
@@ -739,26 +723,34 @@ int main(int argc, char **argv)
 		if (!got_nick)
 			memcpy(slippi_settings->nickname, DEFAULT_NICKNAME, 32);
 
-		// Prevent autobooting if B is pressed
-		int i = 0;
-		while((ncfg->Config & NIN_CFG_AUTO_BOOT) && i < 1000000)
-		{
-			if (i == 0)
-			{
-				PrintBuildInfo();
-				PrintFormat(DEFAULT_SIZE, BLACK, 320 - 90, 
-					MENU_POS_Y + 20*10, "B: Cancel Autoboot");
-				GRRLIB_Render();
-				ClearScreen();
-			}
+		if (IsStealth() && ncfg->Config & NIN_CFG_AUTO_BOOT)
+			argsboot = true;
 
-			FPAD_Update();
-			if (FPAD_Cancel(0))
+		if (argsboot == false)
+		{
+			InitialiseBg();
+
+			// Prevent autobooting if B is pressed
+			int i = 0;
+			while((ncfg->Config & NIN_CFG_AUTO_BOOT) && i < 1000000)
 			{
-				ncfg->Config &= ~NIN_CFG_AUTO_BOOT;
-				break;
-			}
-			i++;
+				if (i == 0)
+				{
+					PrintBuildInfo();
+					PrintFormat(DEFAULT_SIZE, BLACK, 320 - 90, 
+						MENU_POS_Y + 20*10, "B: Cancel Autoboot");
+					GRRLIB_Render();
+					ClearScreen();
+				}
+
+				FPAD_Update();
+				if (FPAD_Cancel(0))
+				{
+					ncfg->Config &= ~NIN_CFG_AUTO_BOOT;
+					break;
+				}
+				i++;
+			}	
 		}
 	}
 
