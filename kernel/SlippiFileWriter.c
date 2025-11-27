@@ -182,19 +182,32 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 	// Always seek first in case there was a previous failure with partial write
 	FRESULT fRes = f_lseek(file, writtenByteCount + 15);
 	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to seek before writing footer, errno: %d\r\n", fRes);
 		return fRes;
+	}
 
 	u32 wrote;
 	fRes = f_write(file, footer, writePos, &wrote);
 	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to write footer, errno: %d\r\n", fRes);
 		return fRes;
+	}
 
 	// Write length
 	fRes = f_lseek(file, 11);
 	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to seek before writing length, errno: %d\r\n", fRes);
 		return fRes;
+	}
 
-	return f_write(file, &writtenByteCount, 4, &wrote);
+	fRes = f_write(file, &writtenByteCount, 4, &wrote);
+	if (fRes != FR_OK)
+		dbgprintf("Slippi: failed to write length, errno: %d\r\n", fRes);
+	
+	return fRes;
 }
 
 static u32 SlippiHandlerThread(void *arg)
@@ -239,18 +252,21 @@ static u32 SlippiHandlerThread(void *arg)
 			}
 			else if (!mounted && !failedToMount)
 			{
-				if (f_mount_char(devices[1], "usb:", 1) == FR_OK)
+				FRESULT mountResult = f_mount_char(devices[1], "usb:", 1);
+				if (mountResult != FR_OK)
+				{
+					dbgprintf("Slippi: failed to mount usb, errno: %d\r\n", mountResult);
+
+					// only attempt to mount once, user can retry by re-inserting the device.
+					failedToMount = true;
+				}
+				else
 				{
 					// ignore anything already in the buffer. users should not expect to record a
 					// game if the usb device is inserted after game start.
 					memReadPos = SlippiRestoreReadPos();
 
 					mounted = true;
-				}
-				else
-				{
-					// only attempt to mount once, user can retry by re-inserting the device.
-					failedToMount = true;
 				}
 			}
 			if (!mounted)
@@ -269,8 +285,14 @@ static u32 SlippiHandlerThread(void *arg)
 				if (currentFileOpen)
 				{
 					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult == FR_OK)
+					if (closeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to close incompletable file, errno: %d\r\n", closeResult);
+					}
+					else
+					{
 						currentFileOpen = false;
+					}
 				}
 				break;
 			}
@@ -329,7 +351,10 @@ static u32 SlippiHandlerThread(void *arg)
 				
 				FRESULT writeHeaderResult = writeHeader(&currentFile);
 				if (writeHeaderResult != FR_OK)
+				{
+					dbgprintf("Slippi: failed to write header, errno: %d\r\n", writeHeaderResult);
 					break;
+				}
 
 				currentFileValid = true;
 			}
@@ -348,11 +373,19 @@ static u32 SlippiHandlerThread(void *arg)
 			// Always seek first in case there was a previous failure with partial write
 			FRESULT seekResult = f_lseek(&currentFile, writtenByteCount + 15);
 			if (seekResult != FR_OK)
+			{
+				dbgprintf("Slippi: failed to seek before writing data, errno: %d\r\n", seekResult);
 				break;
+			}
 
 			UINT wrote;
 			FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
-			if (writeResult == FR_OK)
+			if (writeResult != FR_OK)
+			{
+				dbgprintf("Slippi: failed to write data, errno: %d\r\n", writeResult);
+				break;
+			}
+			else
 			{
 				// Only increment mem read position when the write fully succeeds
 				memReadPos += wrote;
@@ -364,11 +397,18 @@ static u32 SlippiHandlerThread(void *arg)
 					lastFrame = reader.metadata.lastFrame;
 					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
 					if (completeResult != FR_OK)
+					{
+						// error is logged in completeFile
 						break;
+					}
 
 					currentFileValid = false;
 					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult == FR_OK)
+					if (closeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to close completed file, errno: %d\r\n", closeResult);
+					}
+					else
 					{
 						currentFileOpen = false;
 						if (replaysLED)
@@ -379,10 +419,6 @@ static u32 SlippiHandlerThread(void *arg)
 				}
 				else if (replaysLED)
 					flashLED();
-			}
-			else
-			{
-				break;
 			}
 		}
 	}
