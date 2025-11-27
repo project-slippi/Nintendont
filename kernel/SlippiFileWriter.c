@@ -259,15 +259,24 @@ static u32 SlippiHandlerThread(void *arg)
 
 					// only attempt to mount once, user can retry by re-inserting the device.
 					failedToMount = true;
+					continue;
 				}
-				else
-				{
-					// ignore anything already in the buffer. users should not expect to record a
-					// game if the usb device is inserted after game start.
-					memReadPos = SlippiRestoreReadPos();
 
-					mounted = true;
+				// Create folder if it doesn't exist yet
+				FRESULT mkdirResult = f_mkdir_secondary_drive("/Slippi");
+				if (mkdirResult != FR_OK && mkdirResult != FR_EXIST)
+				{
+					dbgprintf("Slippi: failed to mkdir: /Slippi, errno: %d\r\n", mkdirResult);
+
+					// only attempt to mount once, user can retry by re-inserting the device.
+					failedToMount = true;
+					continue;
 				}
+
+				// ignore anything already in the buffer. users should not expect to record a
+				// game if the usb device is inserted after game start.
+				memReadPos = SlippiRestoreReadPos();
+				mounted = true;
 			}
 			if (!mounted)
 				continue;
@@ -325,14 +334,6 @@ static u32 SlippiHandlerThread(void *arg)
 						break;
 					}
 					currentFileOpen = false;
-				}
-
-				// Create folder if it doesn't exist yet
-				FRESULT mkdirResult = f_mkdir_secondary_drive("/Slippi");
-				if (mkdirResult != FR_OK && mkdirResult != FR_EXIST)
-				{
-					dbgprintf("Slippi: failed to mkdir: /Slippi, errno: %d\r\n", mkdirResult);
-					break;
 				}
 
 				dbgprintf("Creating File...\r\n");
