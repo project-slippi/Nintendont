@@ -562,6 +562,7 @@ int main(int argc, char **argv)
 	// Load and patch IOS58.
 	if (LoadKernel() < 0)
 	{
+		InitialiseBg();
 		// NOTE: Attempting to initialize controllers here causes a crash.
 		// Hence, we can't wait for the user to press the HOME button, so
 		// we'll just wait for a timeout instead.
