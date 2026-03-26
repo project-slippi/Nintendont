@@ -684,12 +684,6 @@ int main(int argc, char **argv)
 	}
 	gprintf("launch_dir = %s\r\n", launch_dir);
 
-	// Initialize controllers.
-	// FIXME: Initialize before storage devices.
-	// Doing that right now causes usbstorage to fail...
-	FPAD_Init();
-	FPAD_Update();
-
 	// Read IPL Font before doing any patches 
 	void *fontbuffer = memalign(32, 0x50000);
 	__SYS_ReadROM((void*)fontbuffer,0x50000,0x1AFF00);
@@ -730,6 +724,10 @@ int main(int argc, char **argv)
 		if (argsboot == false)
 		{
 			InitialiseBg();
+
+			// Initialize controllers.
+			FPAD_Init();
+			FPAD_Update();
 
 			// Prevent autobooting if B is pressed
 			int i = 0;
