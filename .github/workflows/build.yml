@@ -9,13 +9,16 @@ on:
         default: "ignore"
   push:
     branches:
-      - slippi
-      - ci
+      - "**"
   pull_request:
     paths-ignore:
       - "**.md"
     branches:
       - "**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   ubuntu64:
