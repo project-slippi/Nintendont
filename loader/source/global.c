@@ -469,6 +469,19 @@ void UpdateNinCFG()
 		// 0 defaults are fine
 		ncfg->Version = 0xD;
 	}
+	if (ncfg->Version == 0xD)
+	{
+		switch(ncfg->MeleeCodeOptions[0])
+		{
+			case 3: // UCF 0.84 Old
+				ncfg->MeleeCodeOptions[0] = 1;
+				break;
+			case 4: // UCF 0.84 Stealth
+				ncfg->MeleeCodeOptions[0] = 2;
+				break;
+		}
+		ncfg->Version = 0xE;
+	}
 }
 
 int CreateNewFile(const char *Path, unsigned int size)
