@@ -7,9 +7,9 @@ MEM1
 
 MEM2
 0x90000000-0x91000000=aram
-0x91000000-0x92000000=memcard emu - end point depends on memcard size
-0x92000000-0x92E80000=cache - start point depends on memcard size end point depends on Triforce
-0x92B80000-0x92E80000=(In Triforce mode this is reserved for DIMM memory)
+0x91000000-0x92B70000=iso cache (can be reduced to 0xE80000 bytes / 14.5M in vanilla)
+0x92B70000-0x92B80000=unused
+0x92B80000-0x92E80000=slippi replay buffer
 0x92E80000-0x92F00000=temporary di buffer (Also used by Patch code when processing DSP)
 
 0x92F00000-0x93000000=Nintendont kernel
@@ -71,6 +71,7 @@ MEM2
 0x932C0000-0x932C0482=conf_pads
 0x932C0490-0x932C0494=IRSensitivity
 0x932C0494-0x932C0498=SensorBarPosition
+0x932C1000-0x932C1022=important_storage_data (USB)
 0x932F0000-0x932F008F=BTPad
 
 Hardware Registers
