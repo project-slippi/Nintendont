@@ -175,9 +175,8 @@ static unsigned int font_ttf_size = 0;
  * This also loads the background image.
  * @param autoboot Set if autobooting. (This disables the fade-in.)
  */
-void Initialise(bool autoboot)
+void Initialise(void)
 {
-	int i;
 	AUDIO_Init(NULL);
 	DSP_Init();
 	AUDIO_StopDMA();
@@ -197,18 +196,20 @@ void Initialise(bool autoboot)
 	bg_xScale = 1.0f;
 	bg_xPos = 0;
 
-	if(autoboot == false)
-	{
-		// Fade background image by incrementing opacity
-		for (i=0; i<255; i +=5)
-		{
-			GRRLIB_DrawImg(bg_xPos, 0, background, 0, bg_xScale, 1,
-				RGBA(255, 255, 255, i));
-			GRRLIB_Render();
-		}
-		ClearScreen();
-	}
 	gprintf("Initialize Finished\r\n");
+}
+
+void InitialiseBg(void)
+{
+	int i;
+	// Fade background image by incrementing opacity
+	for (i=0; i<255; i +=5)
+	{
+		GRRLIB_DrawImg(bg_xPos, 0, background, 0, bg_xScale, 1,
+			RGBA(255, 255, 255, i));
+		GRRLIB_Render();
+	}
+	ClearScreen();
 }
 
 static void (*stub)() = (void*)0x80001800;
@@ -303,6 +304,12 @@ void LoaderShutdown()
 	VIDEO_WaitVSync();
 	SYS_ResetSystem(SYS_POWEROFF_STANDBY, 0, 0);
 	while(1) usleep(20000);
+}
+
+bool IsStealth(void)
+{
+	FILINFO fno;
+	return f_stat_char("/enable_stealth_autoboot.txt", &fno) == FR_OK;
 }
 
 /**

@@ -142,10 +142,12 @@ typedef struct
 // FIXME: This return type isn't quite correct...
 const char* const GetRootDevice();
 void RAMInit(void);
-void Initialise(bool autoboot);
+void Initialise(void);
+void InitialiseBg(void);
 void unzip_data(const void *input, const unsigned int input_size, 
 	void **output, unsigned int *output_size);
 
+bool IsStealth(void);
 /**
  * Load the configuration file from the root device.
  * @return True if loaded successfully; false if not.
