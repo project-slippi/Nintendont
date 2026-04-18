@@ -23,18 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define SI_GC_CONTROLLER 0x09000000
 #define SI_ERROR_NO_RESPONSE 0x08
-#define SI_EXTRA_REQUEST  0x13003500  // ARM-side mirror of 0x93003500
-
-#define SI_HW_BASE       0x0D006400
-#define SI_HW_CONTROL    (SI_HW_BASE + 0x34)
-#define SI_HW_STATUS     (SI_HW_BASE + 0x38)
-#define SI_HW_IO_BUF    (SI_HW_BASE + 0x80)
-
-#define EXTRA_DATA_ADDR  0x13003520
-#define EXTRA_DATA_MAX   1024
-
-#define SI_CMD_EXTRA_DATA   0xF0
-#define SI_CMD_EXTRA_CHUNK  0xF1
 
 u32 SI_IRQ = 0;
 static bool complete = true;
@@ -91,111 +79,8 @@ void SIInterrupt()
 	complete ^= 1;
 }
 
-// One-shot SI transfer using the IO buffer (doesn't touch channel regs)
-static s32 SIRawTransfer(u32 chan, u32 cmdWord, u32 cmdLen, u32 respLen)
-{
-    // Write command into IO buffer
-    write32(SI_HW_IO_BUF, cmdWord);
-
-    // Build control word:
-    // bit 0: start transfer
-    // bits 1-2: channel
-    // bits 8-14: output length (bytes to send)
-    // bits 16-22: input length (bytes to receive)
-    u32 control = (1 << 0)
-                | ((chan & 3) << 1)
-                | ((cmdLen & 0x7F) << 8)
-                | ((respLen & 0x7F) << 16);
-
-    write32(SI_HW_CONTROL, control);
-
-    // Wait for transfer complete
-    u32 timeout = 50000;
-    while (timeout--)
-    {
-        u32 ctrl = read32(SI_HW_CONTROL);
-        if (ctrl & (1 << 31))  // TC bit
-        {
-            // Clear TC
-            write32(SI_HW_CONTROL, ctrl & ~1);
-            if (ctrl & (1 << 29))  // NOREP — no response
-                return -1;
-            return 0;
-        }
-        udelay(1);
-    }
-    return -2;
-}
-
-static void SIReadExtraData(u32 chan)
-{
-    u8 *dest = (u8*)EXTRA_DATA_ADDR + (chan * EXTRA_DATA_MAX);
-
-    // Step 1: Ask RP2040 how much data it has
-    s32 ret = SIRawTransfer(chan, (SI_CMD_EXTRA_DATA << 24), 1, 4);
-    if (ret < 0) return;
-
-    u32 response = read32(SI_HW_IO_BUF);
-    u32 totalSize = response & 0xFFFF;
-    if (totalSize == 0 || totalSize > EXTRA_DATA_MAX) return;
-
-    dbgprintf("SI:Chan%u: Reading %u bytes extra data\r\n", chan, totalSize);
-
-    // Step 2: Read in 60-byte chunks (leave room for cmd overhead)
-    u32 totalRead = 0;
-    u32 chunkIdx = 0;
-    while (totalRead < totalSize)
-    {
-        u32 thisChunk = totalSize - totalRead;
-        if (thisChunk > 60) thisChunk = 60;
-
-        u32 cmd = (SI_CMD_EXTRA_CHUNK << 24) | (chunkIdx << 16);
-        ret = SIRawTransfer(chan, cmd, 3, thisChunk);
-        if (ret < 0)
-        {
-            dbgprintf("SI:Chan%u: Chunk %u failed\r\n", chan, chunkIdx);
-            break;
-        }
-
-        // Copy from IO buffer
-        u32 i;
-        for (i = 0; i < thisChunk; i += 4)
-        {
-            u32 word = read32(SI_HW_IO_BUF + i);
-            dest[totalRead + i + 0] = (word >> 24) & 0xFF;
-            dest[totalRead + i + 1] = (word >> 16) & 0xFF;
-            dest[totalRead + i + 2] = (word >>  8) & 0xFF;
-            dest[totalRead + i + 3] = (word >>  0) & 0xFF;
-        }
-
-        totalRead += thisChunk;
-        chunkIdx++;
-    }
-
-    dest[totalRead] = 0;
-    sync_after_write(dest, (EXTRA_DATA_MAX + 31) & ~31);
-    dbgprintf("SI:Chan%u: Extra data: \"%s\"\r\n", chan, dest);
-}
-
 void SIUpdateRegisters()
 {
-    // === Check if PPC signaled a new controller ===
-    sync_before_read((void*)SI_EXTRA_REQUEST, 0x20);
-    u32 chan;
-    for (chan = 0; chan < 4; chan++)
-    {
-        u32 request = read32(SI_EXTRA_REQUEST + (chan * 4));
-        if (request == 1)
-        {
-            // PPC detected a new controller — read extra data now
-            SIReadExtraData(chan);
-
-            // Signal back to PPC that we're done
-            write32(SI_EXTRA_REQUEST + (chan * 4), 2);
-            sync_after_write((void*)SI_EXTRA_REQUEST, 0x20);
-        }
-    }
-
 	sync_before_read((void*)SI_BASE, 0x100);
 	cur_control = read32(SI_CONTROL);
 	u32 cur_status = read32(SI_STATUS);

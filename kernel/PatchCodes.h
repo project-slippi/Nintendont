@@ -28,6 +28,7 @@
 #include "asm/TCIntrruptHandler.h"
 #include "asm/SIIntrruptHandler.h"
 #include "asm/SIInitStore.h"
+#include "asm/SIGetTypeControllerMetadata.h"
 #include "asm/PADRead.h"
 #include "asm/PADControlAllMotors.h"
 #include "asm/PADControlMotor.h"
