@@ -21,10 +21,10 @@
 
 // Shared memory for CMD 0xA0xx controller metadata (ARM physical)
 #define SFW_EXTRA_DATA_ADDR  0x13080020
-#define SFW_XDATA_STRIDE     0x0410
+#define SFW_XDATA_STRIDE     0x02B0
 #define SFW_XOFF_NCHUNKS     0x08
 #define SFW_XOFF_CHUNKS      0x10
-#define SFW_CHUNK_SIZE       128
+#define SFW_CHUNK_SIZE       80
 // INLNGTH=80 minus 2-byte header per chunk
 #define SFW_CHUNK_DATA        78
 

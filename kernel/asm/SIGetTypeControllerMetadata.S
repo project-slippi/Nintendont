@@ -12,7 +12,7 @@
 #  Each chunk is 80 bytes; data starts at byte 2 (78 data bytes/chunk).
 #  Max total data = 8 * 78 = 624 bytes.
 #
-#  Per-channel shared memory layout (base +0x20, stride 0x410):
+#  Per-channel shared memory layout (base +0x20, stride 0x2B0):
 #    +0x000  tag        u32   (TAG_OK / TAG_NODATA / error tags)
 #    +0x004  calls      u32   (monotonic "data ready" counter)
 #    +0x008  n_chunks   u32   (number of 80-byte chunks, 1-8)
@@ -20,24 +20,27 @@
 #    +0x010  chunk[0]   80 bytes  (raw CMD 0xA000 response)
 #    +0x060  chunk[1]   80 bytes  (raw CMD 0xA001 response)
 #    ...
-#    +0x390  chunk[7]   80 bytes  (raw CMD 0xA007 response)
+#    +0x230  chunk[7]   80 bytes  (raw CMD 0xA007 response)
+#    +0x290  dbg_iobuf0 u32
+#    +0x294  dbg_cmdidx u32
+#    +0x298  dbg_id     12 bytes (3 words)
 #
-#  Chan N base = EXTRA_DATA_BASE + 0x20 + (N * 0x410)
+#  Chan N base = EXTRA_DATA_BASE + 0x20 + (N * 0x2B0)
 
 .set SI_HW_COMCSR,       0xCD806434
 .set SI_HW_IO_BUF,       0xCD806480
 .set EXTRA_DATA_BASE,    0xD3080000
 
 .set CHAN_BASE_OFF,       0x20
-.set CHAN_STRIDE,         0x0410
+.set CHAN_STRIDE,         0x02B0   # 688 bytes per channel
 .set XOFF_TAG,           0x00
 .set XOFF_CALLS,         0x04
 .set XOFF_NCHUNKS,       0x08
 .set XOFF_DBG_COMCSR,    0x0C
-.set XOFF_CHUNKS,        0x10
-.set XOFF_DBG_IOBUF0,    0x400
-.set XOFF_DBG_CMDIDX,    0x404
-.set XOFF_DBG_ID,        0x408        # CMD 0x00 identity probe result (3 words)
+.set XOFF_CHUNKS,        0x10     # 8 chunks × 80 bytes = 640 (0x280)
+.set XOFF_DBG_IOBUF0,    0x290
+.set XOFF_DBG_CMDIDX,    0x294
+.set XOFF_DBG_ID,        0x298    # CMD 0x00 identity probe result (3 words)
 .set CHUNK_SIZE,          80
 .set MAX_CHUNKS,          8
 
@@ -62,9 +65,7 @@ SIGetTypeControllerMetadata:
 
     # r5 = per-channel shared memory base
     lis     r5, EXTRA_DATA_BASE@h
-    slwi    r6, r31, 10             # chan * 1024
-    slwi    r7, r31, 4              # chan * 16
-    add     r6, r6, r7              # chan * 1040 = chan * 0x410
+    mulli   r6, r31, CHAN_STRIDE     # chan * 688 = chan * 0x2B0
     addi    r6, r6, CHAN_BASE_OFF
     add     r5, r5, r6
 
@@ -247,8 +248,8 @@ SIGetTypeControllerMetadata:
     cmpw    r10, r11
     bne     .Lnodata
 
-    # Copy 128 bytes (32 words) from IO_BUF to chunk[cmd_idx]
-    slwi    r7, r12, 7              # cmd_idx * 128
+    # Copy 80 bytes (20 words) from IO_BUF to chunk[cmd_idx]
+    mulli   r7, r12, CHUNK_SIZE     # cmd_idx * 80
     addi    r7, r7, XOFF_CHUNKS
     add     r7, r5, r7              # dest ptr
     li      r10, 0

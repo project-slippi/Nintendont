@@ -24,6 +24,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define SI_GC_CONTROLLER 0x09000000
 #define SI_ERROR_NO_RESPONSE 0x08
 
+/* Shared memory for PPC→ARM extra data (ARM physical address) */
+/* PPC writes to 0xD3080000 (uncached) = ARM 0x13080000.
+ * Per-channel data starts at +0x20 with stride 0x410. */
+#define CONTROLLER_METADATA_BASE 0x13080000
+// 0x20 header + 4 channels * 0x410 stride
+#define CONTROLLER_METADATA_SIZE 0x0AE0
+
+
 u32 SI_IRQ = 0;
 static bool complete = true;
 static u32 cur_control = 0;
@@ -35,6 +43,10 @@ void SIInit()
 	sync_before_read((void*)PAD_BUFF, 0x40);
 	memset((void*)PAD_BUFF, 0, 0x30); //For Triforce to not instantly reset
 	sync_after_write((void*)PAD_BUFF, 0x40);
+
+	// Clear shared memory for PPC to ARM controller metadata
+	memset((void*)CONTROLLER_METADATA_BASE, 0, CONTROLLER_METADATA_SIZE);
+	sync_after_write((void*)CONTROLLER_METADATA_BASE, CONTROLLER_METADATA_SIZE);
 
 	SI_IRQ = 0;
 	complete = true;
