@@ -36,13 +36,6 @@ static u32 PrevAdapterChannel3 = 0;
 static u32 PrevAdapterChannel4 = 0;
 static u32 PrevDRCButton = 0;
 
-static u32 PadWasConnected[NIN_CFG_MAXPAD] = {0};
-
-// Shared memory for signaling the kernel
-#define SI_EXTRA_REQUEST  0x93003500  // PPC writes here
-// Layout: 4 bytes per channel
-// 0 = idle, 1 = "new controller, please read extra data", 2 = "kernel done"
-
 #define DRC_SWAP (1<<16)
 
 const s8 DEADZONE = 0x1A;
@@ -227,7 +220,6 @@ u32 _start(u32 calledByGame)
 			Pad[chan].button = ((PADButtonsStick>>16)&0xFFFF);
 			if(Pad[chan].button & 0x8000) /* controller not enabled */
 			{
-				PadWasConnected[chan] = 0;
 				PADBarrelEnabled[chan] = 1; //if wavebird disconnects it cant reconnect
 				u32 psize = sizeof(PADStatus)-1; //dont set error twice
 				vu8 *CurPad = (vu8*)(&Pad[chan]);
@@ -239,19 +231,6 @@ u32 _start(u32 calledByGame)
 				}
 				continue;
 			}
-
-			// Controller is connected
-			if(!PadWasConnected[chan])
-			{
-			    // New controller just appeared!
-			    PadWasConnected[chan] = 1;
-
-			    // Signal the kernel to read extra data for this channel
-			    vu32 *request = (vu32*)(SI_EXTRA_REQUEST + (chan * 4));
-			    *request = 1;
-			    asm volatile("dcbf 0, %0 ; sync" : : "r"(request));
-			}
-
 			used |= (1<<chan);
 
 			/* save IsBarrel status */
