@@ -23,7 +23,7 @@
 #    +0x230  chunk[7]   80 bytes  (raw CMD 0xA007 response)
 #    +0x290  dbg_iobuf0 u32
 #    +0x294  dbg_cmdidx u32
-#    +0x298  dbg_id     12 bytes (3 words)
+#    +0x298  dbg_id     12 bytes (3 words, reserved; previously CMD 0x00 probe)
 #
 #  Chan N base = EXTRA_DATA_BASE + 0x20 + (N * 0x2B0)
 
@@ -40,7 +40,7 @@
 .set XOFF_CHUNKS,        0x10     # 8 chunks × 80 bytes = 640 (0x280)
 .set XOFF_DBG_IOBUF0,    0x290
 .set XOFF_DBG_CMDIDX,    0x294
-.set XOFF_DBG_ID,        0x298    # CMD 0x00 identity probe result (3 words)
+.set XOFF_DBG_ID,        0x298    # reserved (was CMD 0x00 identity probe result)
 .set CHUNK_SIZE,          80
 .set MAX_CHUNKS,          8
 
@@ -108,50 +108,11 @@ SIGetTypeControllerMetadata:
     li      r9, 0
     stw     r9, XOFF_DBG_COMCSR(r5) # init: 0 = no COMERR
 
-    # === Diagnostic: CMD 0x00 identity probe ===
-    # Send 1-byte CMD 0x00, expect 3 bytes back (24-bit type ID)
-    lis     r9, 0x0000
-    stw     r9, 0(r8)              # IO_BUF[0] = 0x00000000
-    eieio
-    # COMCSR: TCINT_clear | OUTLNGTH=1 | INLNGTH=3 | chan | TSTART
-    lis     r9, 0x8001
-    ori     r9, r9, 0x0301         # INLNGTH=3, TSTART=1
-    slwi    r7, r31, 1
-    or      r9, r9, r7             # chan bits
-    stw     r9, 0(r6)
-    eieio
-
-    li      r10, 0
-.Lid_poll:
-    lwz     r7, 0(r6)
-    eieio
-    andis.  r9, r7, 0x8000
-    bne     .Lid_done
-    addi    r10, r10, 1
-    cmpwi   r10, 20000
-    blt     .Lid_poll
-    # Timeout — store 0xDEAD as id result
-    lis     r9, 0xDEAD
-    stw     r9, XOFF_DBG_ID(r5)
-    li      r9, 0
-    stw     r9, XOFF_DBG_ID+4(r5)
-    stw     r7, XOFF_DBG_ID+8(r5)  # raw COMCSR
-    b       .Lid_clear
-
-.Lid_done:
-    # Store COMCSR, IO_BUF[0] (contains type ID), IO_BUF[1]
-    stw     r7, XOFF_DBG_ID+8(r5)  # COMCSR from identity probe
-    lwz     r9, 0(r8)
-    eieio
-    stw     r9, XOFF_DBG_ID(r5)    # IO_BUF[0] = type ID bits
-    lwz     r9, 4(r8)
-    stw     r9, XOFF_DBG_ID+4(r5)  # IO_BUF[1]
-
-.Lid_clear:
-    # Clear TCINT
-    lis     r9, 0x8000
-    stw     r9, 0(r6)
-    eieio
+    # NOTE: No CMD 0x00 identity probe — issuing an extra SI transaction
+    # inside the PADOriginCallback ISR perturbs the bus for normal GC
+    # controllers and delays the SDK's subsequent SIEnablePolling. The first
+    # CMD 0xA0xx below is itself the probe: a real GC controller will reply
+    # with COMERR which is caught in .Lcomerr_as_nodata.
 
     # ========== Command loop ==========
 .Lcmd_loop:
@@ -299,6 +260,15 @@ SIGetTypeControllerMetadata:
     stw     r9, XOFF_TAG(r5)
 
 .Lrestore:
+    # Restore SI error state to entry: on entry COMERR/TCINT are clean
+    # (PADOriginCallback was invoked with error=0 and the SDK ISR cleared
+    # TCINT before dispatch), so unconditionally W1C both bits in COMCSR.
+    # This prevents any sticky COMERR from our CMD 0xA0 probes from
+    # being observed by the SDK's subsequent SIEnablePolling.
+    lis     r9, 0xA000              # 0x80000000 (TCINT W1C) | 0x20000000 (COMERR W1C)
+    stw     r9, 0(r6)
+    eieio
+
     lwz     r9, XOFF_CALLS(r5)
     addi    r9, r9, 1
     stw     r9, XOFF_CALLS(r5)
