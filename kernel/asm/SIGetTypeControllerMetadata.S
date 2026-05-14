@@ -23,7 +23,8 @@
 #    +0x230  chunk[7]   80 bytes  (raw CMD 0xA007 response)
 #    +0x290  dbg_iobuf0 u32
 #    +0x294  dbg_cmdidx u32
-#    +0x298  dbg_id     12 bytes (3 words, reserved; previously CMD 0x00 probe)
+#    +0x298  attempts   u32   (count of SI-work runs; hook fast-exits when >= 2)
+#    +0x29C  reserved   2 words
 #
 #  Chan N base = EXTRA_DATA_BASE + 0x20 + (N * 0x2B0)
 
@@ -40,9 +41,10 @@
 .set XOFF_CHUNKS,        0x10     # 8 chunks × 80 bytes = 640 (0x280)
 .set XOFF_DBG_IOBUF0,    0x290
 .set XOFF_DBG_CMDIDX,    0x294
-.set XOFF_DBG_ID,        0x298    # reserved (was CMD 0x00 identity probe result)
+.set XOFF_ATTEMPTS,      0x298    # number of SI-work runs; hook fast-exits when >= MAX_ATTEMPTS
 .set CHUNK_SIZE,          80
 .set MAX_CHUNKS,          8
+.set MAX_ATTEMPTS,        2
 
 SIGetTypeControllerMetadata:
     lwz     r31, -0x5A68(r13)
@@ -68,6 +70,14 @@ SIGetTypeControllerMetadata:
     mulli   r6, r31, CHAN_STRIDE     # chan * 688 = chan * 0x2B0
     addi    r6, r6, CHAN_BASE_OFF
     add     r5, r5, r6
+
+    # Fast-exit if we've already done MAX_ATTEMPTS SI runs on this channel.
+    # After two tries the SDK's retry loop will keep firing this callback as
+    # the controller cycles err=-1/0, but there's no point repeatedly
+    # disturbing the SI bus — a real RP2040 will have answered by now.
+    lwz     r9, XOFF_ATTEMPTS(r5)
+    cmpwi   r9, MAX_ATTEMPTS
+    bge     .Lcap_exit
 
     # r6 = COMCSR address (constant)
     lis     r6, SI_HW_COMCSR@h
@@ -269,6 +279,12 @@ SIGetTypeControllerMetadata:
     stw     r9, 0(r6)
     eieio
 
+    # Bump attempt counter (only on paths that actually did SI work).
+    lwz     r9, XOFF_ATTEMPTS(r5)
+    addi    r9, r9, 1
+    stw     r9, XOFF_ATTEMPTS(r5)
+
+.Lcap_exit:
     lwz     r9, XOFF_CALLS(r5)
     addi    r9, r9, 1
     stw     r9, XOFF_CALLS(r5)
