@@ -134,9 +134,10 @@ void writeHeader(FIL *file)
 }
 
 /* Validate that buf[0..len) is a UBJSON object containing only string
- * values with int8/uint8-length keys and values, all printable ASCII.
- * Accepts both 'U' (uint8) and 'i' (int8) as length type markers.
- * Returns the validated byte count (including { and }), or 0 on failure. */
+ * values with uint8-length keys and values, all printable ASCII.
+ * Required format per field: key is "U <len> <bytes>", value is
+ * "S U <len> <bytes>". Returns validated byte count including { and }.
+ */
 static u16 validateUbjsonStringDict(const u8 *buf, u16 len)
 {
 	if (len < 2 || buf[0] != '{')
@@ -146,8 +147,8 @@ static u16 validateUbjsonStringDict(const u8 *buf, u16 len)
 	while (pos < len && buf[pos] != '}')
 	{
 		u16 i;
-		/* Key: U/i <keyLen> <keyBytes> */
-		if (pos + 2 > len || (buf[pos] != 'U' && buf[pos] != 'i'))
+		/* Key: U <keyLen> <keyBytes> */
+		if (pos + 2 > len || buf[pos] != 'U')
 			return 0;
 		u8 keyLen = buf[pos + 1];
 		pos += 2;
@@ -158,9 +159,8 @@ static u16 validateUbjsonStringDict(const u8 *buf, u16 len)
 				return 0;
 		pos += keyLen;
 
-		/* Value: S U/i <valLen> <valBytes> */
-		if (pos + 3 > len || buf[pos] != 'S' ||
-		    (buf[pos + 1] != 'U' && buf[pos + 1] != 'i'))
+		/* Value: S U <valLen> <valBytes> */
+		if (pos + 3 > len || buf[pos] != 'S' || buf[pos + 1] != 'U')
 			return 0;
 		u8 valLen = buf[pos + 2];
 		pos += 3;
