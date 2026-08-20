@@ -17,7 +17,16 @@
 #define THREAD_ERROR_TIME_MS 2000
 #define LED_FLASH_TIME_MS 1000
 
-#define FOOTER_BUFFER_LENGTH 200
+#define FOOTER_BUFFER_LENGTH 2048
+
+// Shared memory for CMD 0xA0xx controller metadata (ARM physical)
+#define SFW_EXTRA_DATA_ADDR  0x13080020
+#define SFW_XDATA_STRIDE     0x02B0
+#define SFW_XOFF_NCHUNKS     0x08
+#define SFW_XOFF_CHUNKS      0x10
+#define SFW_CHUNK_SIZE       80
+// INLNGTH=80 minus 2-byte header per chunk
+#define SFW_CHUNK_DATA        78
 
 static u32 SlippiHandlerThread(void *arg);
 
@@ -124,9 +133,79 @@ void writeHeader(FIL *file)
 	f_sync(file);
 }
 
+/* Validate that buf[0..len) is a UBJSON object containing only string
+ * values with uint8-length keys and values, all printable ASCII.
+ * Required format per field: key is "U <len> <bytes>", value is
+ * "S U <len> <bytes>". Returns validated byte count including { and }.
+ */
+static u16 validateUbjsonStringDict(const u8 *buf, u16 len)
+{
+	if (len < 2 || buf[0] != '{')
+		return 0;
+
+	u16 pos = 1;
+	while (pos < len && buf[pos] != '}')
+	{
+		u16 i;
+		/* Key: U <keyLen> <keyBytes> */
+		if (pos + 2 > len || buf[pos] != 'U')
+			return 0;
+		u8 keyLen = buf[pos + 1];
+		pos += 2;
+		if (keyLen == 0 || pos + keyLen > len)
+			return 0;
+		for (i = 0; i < keyLen; i++)
+			if (buf[pos + i] < 0x20 || buf[pos + i] > 0x7E)
+				return 0;
+		pos += keyLen;
+
+		/* Value: S U <valLen> <valBytes> */
+		if (pos + 3 > len || buf[pos] != 'S' || buf[pos + 1] != 'U')
+			return 0;
+		u8 valLen = buf[pos + 2];
+		pos += 3;
+		if (pos + valLen > len)
+			return 0;
+		for (i = 0; i < valLen; i++)
+			if (buf[pos + i] < 0x20 || buf[pos + i] > 0x7E)
+				return 0;
+		pos += valLen;
+	}
+
+	if (pos >= len || buf[pos] != '}')
+		return 0;
+
+	return pos + 1;
+}
+
+/* Reassemble data from raw 80-byte SI chunks into a contiguous buffer.
+ * Every chunk has a 2-byte header (total, current); data is bytes 2..79.
+ * Returns number of bytes written to dest. */
+static u16 reassembleControllerMetadata(u32 chanBase, u8 *dest, u16 maxLen)
+{
+	u32 nChunks  = read32(chanBase + SFW_XOFF_NCHUNKS);
+
+	if (nChunks == 0 || nChunks > 8)
+		return 0;
+
+	u16 written = 0;
+	u32 i;
+	for (i = 0; i < nChunks && written < maxLen; i++)
+	{
+		u8 *chunkN = (u8*)(chanBase + SFW_XOFF_CHUNKS + i * SFW_CHUNK_SIZE);
+		u16 copyLen = SFW_CHUNK_DATA;
+		if (written + copyLen > maxLen)
+			copyLen = maxLen - written;
+		memcpy(dest + written, chunkN + 2, copyLen);
+		written += copyLen;
+	}
+
+	return written;
+}
+
 void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 {
-	u8 footer[FOOTER_BUFFER_LENGTH];
+	static u8 footer[FOOTER_BUFFER_LENGTH];
 	u32 writePos = 0;
 
 	// Write opener
@@ -169,9 +248,52 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	memcpy(&footer[writePos], SlippiGetConsoleNick(), nickLen);
 	writePos += nickLen;
 
-	// Write closing
+	// Write players with initial poll data
+	u8 playersOpener[] = {'U', 7, 'p', 'l', 'a', 'y', 'e', 'r', 's', '{'};
+	writeLen = sizeof(playersOpener);
+	memcpy(&footer[writePos], playersOpener, writeLen);
+	writePos += writeLen;
+
+	// read controller metadata from shared memory
+	sync_before_read((void*)SFW_EXTRA_DATA_ADDR, 4 * SFW_XDATA_STRIDE);
+	static u8 dataBuf[1024];
+	int ch;
+	for (ch = 0; ch < 4; ch++)
+	{
+		u32 addr = SFW_EXTRA_DATA_ADDR + ch * SFW_XDATA_STRIDE;
+		u32 calls = read32(addr + 0x04);
+		if (calls == 0)
+			continue;
+
+		u32 tag = read32(addr + 0x00);
+		if (tag != 0xCA110000)
+			continue;
+
+		/* Reassemble data from raw chunks */
+		u16 dataLen = reassembleControllerMetadata(addr, dataBuf, sizeof(dataBuf));
+
+		/* Validate: must be a flat UBJSON dict of strings */
+		u16 validLen = validateUbjsonStringDict(dataBuf, dataLen);
+		if (validLen == 0)
+			continue;
+
+		/* Overhead: key(3) + validLen + closing(26) must fit */
+		if (writePos + 3 + validLen + 26 > FOOTER_BUFFER_LENGTH)
+			break;
+
+		/* Key: port index as single char "0"-"3" */
+		footer[writePos++] = 'U';
+		footer[writePos++] = 1;
+		footer[writePos++] = '0' + ch;
+
+		/* Embed validated UBJSON object directly (already includes { and }) */
+		memcpy(&footer[writePos], dataBuf, validLen);
+		writePos += validLen;
+	}
+	footer[writePos++] = '}';  /* close players */
+
+	// Write closing (playedOn + close metadata + close root)
 	u8 closing[] = {
-		'U', 7, 'p', 'l', 'a', 'y', 'e', 'r', 's', '{', '}',
 		'U', 8, 'p', 'l', 'a', 'y', 'e', 'd', 'O', 'n', 'S', 'U',
 		10, 'n', 'i', 'n', 't', 'e', 'n', 'd', 'o', 'n', 't',
 		'}', '}'};
