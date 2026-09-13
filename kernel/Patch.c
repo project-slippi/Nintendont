@@ -3424,6 +3424,31 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		memcpy((void*)gct_cursor, GCT_FOOTER, sizeof(GCT_FOOTER));
 		sync_after_write((void*)gct_cursor, sizeof(GCT_FOOTER));
 		gct_cursor += sizeof(GCT_FOOTER);
+
+		// Hook for controller metadata transfer (native SI mode only)
+		dbgprintf("Patch:ControllerMetadata pre-check: DisableSIPatch=%d MeleeVer=%d\r\n",
+			DisableSIPatch, MeleeVersion);
+		if (DisableSIPatch && MeleeVersion == MELEE_VERSION_NTSC_2)
+		{
+			// PADOriginCallback hook — fires CMD 0x40 right after UpdateOrigin
+			// returns and before SIEnablePolling restarts auto-poll.
+			// The instruction at 0x0034CF4C is: lwz r31, -0x5A68(r13)
+			// This loads ResettingChan after a successful origin read.
+			// Bus is completely idle here — perfect for running a custom SI
+			// command.
+			u32 padOriginPost = 0x0034CF4C;
+			if (read32(padOriginPost) == 0x83EDA598)
+			{
+				u32 hookAddr = PatchCopy(SIGetTypeControllerMetadata, SIGetTypeControllerMetadata_size);
+				PatchBL(hookAddr, padOriginPost);
+				dbgprintf("Patch:[ControllerMetadata] applied in PADOriginCallback (0x%08X)\r\n", padOriginPost);
+			}
+			else
+			{
+				dbgprintf("Patch:[ControllerMetadata] pattern NOT found at 0x%08X (got 0x%08X)\r\n",
+					padOriginPost, read32(padOriginPost));
+			}
+		}
 	}
 
 
