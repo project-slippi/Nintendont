@@ -28,6 +28,7 @@ typedef struct SlpMetadata
 
 typedef struct SlpReadResult
 {
+	u64 bytesAvailable;
 	bool isNewGame;
 	bool isGameEnd;
 	u32 bytesRead;

@@ -9,10 +9,10 @@
 #include "Config.h"
 #include "usbstorage.h"
 
-// Game can transfer at most 784 bytes / frame
-// That means 4704 bytes every 100 ms. Let's aim to handle
-// double that, making our read buffer 10000 bytes
-#define READ_BUF_SIZE 10000
+// use common physical sector size so as to write efficiently
+// and not excessively wear out the underlying flash storage
+#define READ_BUF_SIZE 4096
+
 #define THREAD_CYCLE_TIME_MS 100
 #define THREAD_ERROR_TIME_MS 2000
 #define LED_FLASH_TIME_MS 1000
@@ -93,7 +93,7 @@ struct tm
 };
 extern struct tm *gmtime(u32 *time);
 
-char *generateFileName(bool isNewFile)
+char *generateFileName()
 {
 	// // Add game start time
 	// u8 dateTimeStrLength = sizeof "20171015T095717";
@@ -115,16 +115,15 @@ char *generateFileName(bool isNewFile)
 	return pathStr;
 }
 
-void writeHeader(FIL *file)
+FRESULT writeHeader(FIL *file)
 {
 	u8 header[] = {'{', 'U', 3, 'r', 'a', 'w', '[', '$', 'U', '#', 'l', 0, 0, 0, 0};
 
 	u32 wrote;
-	f_write(file, header, sizeof(header), &wrote);
-	f_sync(file);
+	return f_write(file, header, sizeof(header), &wrote);
 }
 
-void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
+FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 {
 	u8 footer[FOOTER_BUFFER_LENGTH];
 	u32 writePos = 0;
@@ -156,7 +155,7 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	writeLen = sizeof(lastFrameOpener);
 	memcpy(&footer[writePos], lastFrameOpener, writeLen);
 	writePos += writeLen;
-	memcpy(&footer[writePos], &reader->metadata.lastFrame, 4);
+	memcpy(&footer[writePos], &lastFrame, 4);
 	writePos += 4;
 
 	// Write console nickname
@@ -180,13 +179,35 @@ void completeFile(FIL *file, SlpGameReader *reader, u32 writtenByteCount)
 	writePos += writeLen;
 
 	// Write footer
-	u32 wrote;
-	f_write(file, footer, writePos, &wrote);
-	f_sync(file);
+	// Always seek first in case there was a previous failure with partial write
+	FRESULT fRes = f_lseek(file, writtenByteCount + 15);
+	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to seek before writing footer, errno: %d\r\n", fRes);
+		return fRes;
+	}
 
-	f_lseek(file, 11);
-	FRESULT fileWriteResult = f_write(file, &writtenByteCount, 4, &wrote);
-	f_sync(file);
+	u32 wrote;
+	fRes = f_write(file, footer, writePos, &wrote);
+	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to write footer, errno: %d\r\n", fRes);
+		return fRes;
+	}
+
+	// Write length
+	fRes = f_lseek(file, 11);
+	if (fRes != FR_OK)
+	{
+		dbgprintf("Slippi: failed to seek before writing length, errno: %d\r\n", fRes);
+		return fRes;
+	}
+
+	fRes = f_write(file, &writtenByteCount, 4, &wrote);
+	if (fRes != FR_OK)
+		dbgprintf("Slippi: failed to write length, errno: %d\r\n", fRes);
+	
+	return fRes;
 }
 
 static u32 SlippiHandlerThread(void *arg)
@@ -198,11 +219,13 @@ static u32 SlippiHandlerThread(void *arg)
 	static u64 memReadPos = 0;
 
 	u32 writtenByteCount = 0;
+	s32 lastFrame;
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
 	bool failedToMount = false;
-	bool hasFile = false;
+	bool currentFileOpen = false;
+	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
 	bool mounted = use_usb ? USBStorage_IsInserted_SlippiThread() : true;
 
@@ -216,108 +239,188 @@ static u32 SlippiHandlerThread(void *arg)
 			if (!USBStorage_IsInserted_SlippiThread())
 			{
 				if (mounted)
+				{
+					// unmount (cannot fail so no need to check return value)
 					f_mount_char(NULL, "usb:", 1);
+				}
 
 				failedToMount = false;
-				hasFile = false;
+				currentFileOpen = false;
+				currentFileValid = false;
 				mounted = false;
 				continue;
 			}
 			else if (!mounted && !failedToMount)
 			{
-				if (f_mount_char(devices[1], "usb:", 1) == FR_OK)
+				FRESULT mountResult = f_mount_char(devices[1], "usb:", 1);
+				if (mountResult != FR_OK)
 				{
-					// ignore anything already in the buffer. users should not expect to record a
-					// game if the usb device is inserted after game start.
-					memReadPos = SlippiRestoreReadPos();
+					dbgprintf("Slippi: failed to mount usb, errno: %d\r\n", mountResult);
 
-					mounted = true;
-				}
-				else
-				{
 					// only attempt to mount once, user can retry by re-inserting the device.
 					failedToMount = true;
+					continue;
 				}
+
+				// Create folder if it doesn't exist yet
+				FRESULT mkdirResult = f_mkdir_secondary_drive("/Slippi");
+				if (mkdirResult != FR_OK && mkdirResult != FR_EXIST)
+				{
+					dbgprintf("Slippi: failed to mkdir: /Slippi, errno: %d\r\n", mkdirResult);
+
+					// only attempt to mount once, user can retry by re-inserting the device.
+					failedToMount = true;
+					continue;
+				}
+
+				// ignore anything already in the buffer. users should not expect to record a
+				// game if the usb device is inserted after game start.
+				memReadPos = SlippiRestoreReadPos();
+				mounted = true;
 			}
 			if (!mounted)
 				continue;
 		}
 
-		// Read from memory and write to file
-		SlpMemError err = SlippiMemoryRead(&reader, readBuf, READ_BUF_SIZE, memReadPos);
-		if (err)
+		while (1)
 		{
-			if (err == SLP_READ_OVERFLOW)
-				memReadPos = SlippiRestoreReadPos();
-				
-			mdelay(LED_FLASH_TIME_MS + 1000); // we always want LED visibly off if this happens
-			
-			// For specific errors, bytes will still be read. Not continueing to deal with those
-		}
-
-		if (reader.lastReadResult.isNewGame)
-		{
-			// Create folder if it doesn't exist yet
-			f_mkdir_secondary_drive("/Slippi");
-
-			gameStartTime = GetCurrentTime();
-
-			dbgprintf("Creating File...\r\n");
-			char *fileName = generateFileName(true);
-			// Maybe can remove FA_READ since network thread doesn't share &currentFile
-			FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
-			if (fileOpenResult != FR_OK)
+			// Read from memory and write to file
+			SlpMemError err = SlippiMemoryRead(&reader, readBuf, READ_BUF_SIZE, memReadPos);
+			if (err)
 			{
-				dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", fileName, fileOpenResult);
-				mdelay(LED_FLASH_TIME_MS - THREAD_CYCLE_TIME_MS - 100); // short enough so we can recover with running out of LED time.
-				continue;
+				// all possible errors render the current file incompletable, so let's jump ahead
+				currentFileValid = false;
+				memReadPos = SlippiRestoreReadPos();
+				if (currentFileOpen)
+				{
+					FRESULT closeResult = f_close(&currentFile);
+					if (closeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to close incompletable file, errno: %d\r\n", closeResult);
+					}
+					else
+					{
+						currentFileOpen = false;
+					}
+				}
+				break;
 			}
-			if (replaysLED)
-				flashLED();
 
-			hasFile = true;
-			writtenByteCount = 0;
-			writeHeader(&currentFile);
-		}
+			if (reader.lastReadResult.bytesAvailable < READ_BUF_SIZE && !(currentFileValid && reader.lastReadResult.isGameEnd))
+			{
+				if (replaysLED)
+					flashLED();
+				break;
+			}
 
-		if (reader.lastReadResult.bytesRead == 0)
-		{
-			if (replaysLED)
-				flashLED();
-			continue;
-		}
+			if (reader.lastReadResult.isNewGame)
+			{
+				if (currentFileValid)
+				{
+					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
+					if (completeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to complete dangling file, errno: %d\r\n", completeResult);
+						break;
+					}
+					currentFileValid = false;
+				}
+				if (currentFileOpen)
+				{
+					FRESULT closeResult = f_close(&currentFile);
+					if (closeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to close dangling file, errno: %d\r\n", closeResult);
+						break;
+					}
+					currentFileOpen = false;
+				}
 
-		// dbgprintf("Bytes read: %d\r\n", reader.lastReadResult.bytesRead);
+				dbgprintf("Creating File...\r\n");
+				gameStartTime = GetCurrentTime();
+				char *fileName = generateFileName();
+				// Maybe can remove FA_READ since network thread doesn't share &currentFile
+				FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
+				if (fileOpenResult != FR_OK)
+				{
+					dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", fileName, fileOpenResult);
+					break;
+				}
 
-		if (!hasFile)
-		{
-			// we can reach this state if the user inserts a usb device during a game.
-			// skip over and don't write anything until we see the start of a new game
-			if (replaysLED)
-				flashLED();
-			memReadPos += reader.lastReadResult.bytesRead;
-			continue;
-		}
+				currentFileOpen = true;
+				writtenByteCount = 0;
+				
+				FRESULT writeHeaderResult = writeHeader(&currentFile);
+				if (writeHeaderResult != FR_OK)
+				{
+					dbgprintf("Slippi: failed to write header, errno: %d\r\n", writeHeaderResult);
+					break;
+				}
 
-		UINT wrote;
-		FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
-		if (replaysLED && writeResult == FR_OK && wrote > 0)
-			flashLED();
-		f_sync(&currentFile);
+				currentFileValid = true;
+			}
 
-		if (wrote == 0)
-			continue;
+			if (!currentFileValid)
+			{
+				// we can reach this state if we SlippiRestoreReadPos into 
+				// the middle of a game due to usb insertion or SlpMemError
+				// skip over and don't write anything until we see the start of a new game
+				if (replaysLED)
+					flashLED();
+				memReadPos += reader.lastReadResult.bytesRead;
+				break;
+			}
 
-		// Only increment mem read position when the data is correctly written
-		memReadPos += wrote;
-		writtenByteCount += wrote;
+			// Always seek first in case there was a previous failure with partial write
+			FRESULT seekResult = f_lseek(&currentFile, writtenByteCount + 15);
+			if (seekResult != FR_OK)
+			{
+				dbgprintf("Slippi: failed to seek before writing data, errno: %d\r\n", seekResult);
+				break;
+			}
 
-		if (reader.lastReadResult.isGameEnd)
-		{
-			dbgprintf("Completing File...\r\n");
-			completeFile(&currentFile, &reader, writtenByteCount);
-			f_close(&currentFile);
-			hasFile = false;
+			UINT wrote;
+			FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
+			if (writeResult != FR_OK)
+			{
+				dbgprintf("Slippi: failed to write data, errno: %d\r\n", writeResult);
+				break;
+			}
+			else
+			{
+				// Only increment mem read position when the write fully succeeds
+				memReadPos += wrote;
+				writtenByteCount += wrote;
+
+				if (reader.lastReadResult.isGameEnd)
+				{
+					dbgprintf("Completing File...\r\n");
+					lastFrame = reader.metadata.lastFrame;
+					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
+					if (completeResult != FR_OK)
+					{
+						// error is logged in completeFile
+						break;
+					}
+
+					currentFileValid = false;
+					FRESULT closeResult = f_close(&currentFile);
+					if (closeResult != FR_OK)
+					{
+						dbgprintf("Slippi: failed to close completed file, errno: %d\r\n", closeResult);
+					}
+					else
+					{
+						currentFileOpen = false;
+						if (replaysLED)
+							flashLED();
+					}
+
+					break;
+				}
+				else if (replaysLED)
+					flashLED();
+			}
 		}
 	}
 

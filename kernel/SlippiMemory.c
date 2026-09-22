@@ -94,6 +94,7 @@ void SlippiMemoryWrite(const u8 *buf, u32 len)
 SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 readPos)
 {
 	// Reset previous read result
+	reader->lastReadResult.bytesAvailable = 0;
 	reader->lastReadResult.bytesRead = 0;
 	reader->lastReadResult.isGameEnd = false;
 	reader->lastReadResult.isNewGame = false;
@@ -176,6 +177,7 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 	// Save the read cursor and number of bytes we've read
 	reader->lastReadPos = readPos;
 	reader->lastReadResult.bytesRead = bytesRead;
+	reader->lastReadResult.bytesAvailable = posDiff;
 
 	return errCode;
 }
