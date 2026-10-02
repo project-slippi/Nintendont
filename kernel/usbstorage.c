@@ -193,7 +193,7 @@ static bool __ioctl_running = false;
 static bool __main_thread_dirty = false;
 static bool __slippi_thread_dirty = false;
 
-static s32 __usbstorage_reset(important_storage_data *dev);
+static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt);
 
 static u32 __failed_commands = 0;
 #define USBLOG(...) do { if (__failed_commands < USBLOG_DETAIL_LIMIT) ReplayLog(__VA_ARGS__); } while (0)
@@ -259,6 +259,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 	u32 max_size = MAX_TRANSFER_SIZE_V5;
 	u8 ep = write ? dev->ep_out : dev->ep_in;
 	s8 retries = USBSTORAGE_CYCLE_RETRIES + 1;
+	int resets = 0;
 	const char *stage;
 
 	do
@@ -313,8 +314,10 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 
 		if (retval < 0) {
 			USBLOG("usb: op %02X %s failed: %d", cb[0], stage, retval);
-			s32 reset = __usbstorage_reset(dev);
-			USBLOG("usb: reset recovery: %d", reset);
+			// Clear device halts only if a plain reset already failed to help
+			bool clear_device_halt = resets++ > 0;
+			s32 reset = __usbstorage_reset(dev, clear_device_halt);
+			USBLOG("usb: reset recovery%s: %d", clear_device_halt ? " with clear halt" : "", reset);
 			if (reset == USBSTORAGE_ETIMEDOUT)
 				retval = USBSTORAGE_ETIMEDOUT;
 		}
@@ -333,6 +336,10 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 // transfers. A device that stalled an endpoint keeps it halted until it
 // receives CLEAR_FEATURE(ENDPOINT_HALT), and the class reset alone does not
 // clear it (bulk-only 3.1), so without this every later command fails.
+//
+// CLEAR_FEATURE also resets the device's data toggle. If IOS does not reset
+// its own toggle to match, the next packet is dropped, so this is only sent
+// once a reset without it has failed (see __cycle).
 static void __clear_halt(important_storage_data *dev, u8 ep)
 {
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_ENDPOINT;
@@ -342,14 +349,22 @@ static void __clear_halt(important_storage_data *dev, u8 ep)
 }
 
 // Reset recovery, bulk-only 5.3.4
-static s32 __usbstorage_reset(important_storage_data *dev)
+static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt)
 {
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
 	s32 retval = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USBSTORAGE_RESET, 0, dev->interface, 0, NULL);
 
 	udelay(60*1000);
-	__clear_halt(dev, dev->ep_in);udelay(10000);
-	__clear_halt(dev, dev->ep_out);udelay(10000);
+	if (clear_device_halt)
+	{
+		__clear_halt(dev, dev->ep_in);udelay(10000);
+		__clear_halt(dev, dev->ep_out);udelay(10000);
+	}
+	else
+	{
+		USB_ClearHalt(dev->usb_fd, dev->ep_in);udelay(10000); //from http://www.usb.org/developers/devclass_docs/usbmassbulk_10.pdf
+		USB_ClearHalt(dev->usb_fd, dev->ep_out);udelay(10000);
+	}
 	return retval;
 }
 
@@ -401,7 +416,7 @@ static s32 __command(important_storage_data *dev, u8 *buffer, u32 len, u8 *cb, u
 			// Phase error: the device needs reset recovery (bulk-only 6.7)
 			USBLOG("usb: op %02X CSW status %d", cb[0], status);
 			retval = USBSTORAGE_ESTATUS;
-			__usbstorage_reset(dev);
+			__usbstorage_reset(dev, false);
 			continue;
 		}
 
