@@ -19,6 +19,10 @@
 
 #define FOOTER_BUFFER_LENGTH 200
 
+// Attempts to finish the previous replay before giving up on it and
+// recording the next game
+#define DANGLING_FILE_ATTEMPTS 10
+
 static u32 SlippiHandlerThread(void *arg);
 
 // Thread stuff
@@ -123,6 +127,21 @@ FRESULT writeHeader(FIL *file)
 	return f_write(file, header, sizeof(header), &wrote);
 }
 
+// FatFs latches the first disk error in fp->err and fails every later
+// f_lseek/f_write on that handle, so without this a single failed USB transfer
+// ends the replay and blocks every game after it. Rewinding first makes
+// f_lseek rebuild the current cluster from the chain, since an aborted f_write
+// can leave fp->clust ahead of fp->fptr.
+static FRESULT seekFile(FIL *file, FSIZE_t ofs)
+{
+	if (file->err)
+	{
+		file->err = 0;
+		f_lseek(file, 0);
+	}
+	return f_lseek(file, ofs);
+}
+
 FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 {
 	u8 footer[FOOTER_BUFFER_LENGTH];
@@ -180,7 +199,7 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 
 	// Write footer
 	// Always seek first in case there was a previous failure with partial write
-	FRESULT fRes = f_lseek(file, writtenByteCount + 15);
+	FRESULT fRes = seekFile(file, writtenByteCount + 15);
 	if (fRes != FR_OK)
 	{
 		dbgprintf("Slippi: failed to seek before writing footer, errno: %d\r\n", fRes);
@@ -196,7 +215,7 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 	}
 
 	// Write length
-	fRes = f_lseek(file, 11);
+	fRes = seekFile(file, 11);
 	if (fRes != FR_OK)
 	{
 		dbgprintf("Slippi: failed to seek before writing length, errno: %d\r\n", fRes);
@@ -224,6 +243,7 @@ static u32 SlippiHandlerThread(void *arg)
 	driveTimerSet = false;
 
 	bool failedToMount = false;
+	u32 danglingFileAttempts = 0;
 	bool currentFileOpen = false;
 	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
@@ -315,24 +335,22 @@ static u32 SlippiHandlerThread(void *arg)
 
 			if (reader.lastReadResult.isNewGame)
 			{
-				if (currentFileValid)
-				{
-					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
-					if (completeResult != FR_OK)
-					{
-						dbgprintf("Slippi: failed to complete dangling file, errno: %d\r\n", completeResult);
-						break;
-					}
-					currentFileValid = false;
-				}
 				if (currentFileOpen)
 				{
-					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult != FR_OK)
+					FRESULT danglingResult = currentFileValid ? completeFile(&currentFile, lastFrame, writtenByteCount) : FR_OK;
+					if (danglingResult == FR_OK)
+						danglingResult = f_close(&currentFile);
+					if (danglingResult != FR_OK)
 					{
-						dbgprintf("Slippi: failed to close dangling file, errno: %d\r\n", closeResult);
-						break;
+						dbgprintf("Slippi: failed to finish dangling file, errno: %d\r\n", danglingResult);
+						if (++danglingFileAttempts < DANGLING_FILE_ATTEMPTS)
+							break;
+
+						// Leave the partial replay behind instead of missing every later game
+						dbgprintf("Slippi: abandoning dangling file\r\n");
 					}
+					danglingFileAttempts = 0;
+					currentFileValid = false;
 					currentFileOpen = false;
 				}
 
@@ -372,7 +390,7 @@ static u32 SlippiHandlerThread(void *arg)
 			}
 
 			// Always seek first in case there was a previous failure with partial write
-			FRESULT seekResult = f_lseek(&currentFile, writtenByteCount + 15);
+			FRESULT seekResult = seekFile(&currentFile, writtenByteCount + 15);
 			if (seekResult != FR_OK)
 			{
 				dbgprintf("Slippi: failed to seek before writing data, errno: %d\r\n", seekResult);
