@@ -45,6 +45,9 @@ distribution.
 
 #define	CSW_SIZE					13
 #define	CSW_SIGNATURE				0x53425355
+#define	CSW_STATUS_PASSED			0x00
+#define	CSW_STATUS_FAILED			0x01
+#define	CSW_STATUS_PHASE_ERROR		0x02
 
 #define	SCSI_TEST_UNIT_READY		0x00
 #define	SCSI_REQUEST_SENSE			0x03
@@ -55,9 +58,12 @@ distribution.
 #define	SCSI_WRITE_10				0x2A
 
 #define	SCSI_SENSE_REPLY_SIZE		18
+#define	SCSI_SENSE_NO_SENSE			0x00
+#define	SCSI_SENSE_RECOVERED_ERROR	0x01
 #define	SCSI_SENSE_NOT_READY		0x02
 #define	SCSI_SENSE_MEDIUM_ERROR		0x03
 #define	SCSI_SENSE_HARDWARE_ERROR	0x04
+#define	SCSI_SENSE_UNIT_ATTENTION	0x06
 
 #define	USB_CLASS_MASS_STORAGE		0x08
 #define	MASS_STORAGE_RBC_COMMANDS		0x01
@@ -74,6 +80,7 @@ distribution.
 #define	USB_ENDPOINT_BULK			0x02
 
 #define USBSTORAGE_CYCLE_RETRIES	3
+#define USBSTORAGE_COMMAND_RETRIES	3
 
 #define INVALID_LUN					-2
 
@@ -239,7 +246,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 	s32 retval = USBSTORAGE_OK;
 
 	u8 status=0;
-	u32 dataResidue = 0;
+	u32 remaining = 0;
 	u32 max_size = MAX_TRANSFER_SIZE_V5;
 	u8 ep = write ? dev->ep_out : dev->ep_in;
 	s8 retries = USBSTORAGE_CYCLE_RETRIES + 1;
@@ -272,12 +279,21 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 				_len -= retval;
 				_buffer += retval;
 			}
+			else if (!write && retval >= 0)
+			{
+				// A short packet ends the data stage early (bulk-only 6.7.2).
+				// The device still sends a CSW; the shortfall becomes the residue.
+				_len -= retval;
+				retval = USBSTORAGE_OK;
+				break;
+			}
 			else if (retval != USBSTORAGE_ETIMEDOUT)
 				retval = USBSTORAGE_EDATARESIDUE;
 		}
+		remaining = _len;
 
 		if (retval >= 0)
-			retval = __read_csw(dev, &status, &dataResidue);
+			retval = __read_csw(dev, &status, NULL);
 
 		if (retval < 0) {
 			if (__usbstorage_reset(dev) == USBSTORAGE_ETIMEDOUT)
@@ -287,8 +303,9 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 
 	if(_status != NULL)
 		*_status = status;
+	// Report what the host measured: some devices put bogus residues in the CSW
 	if(_dataResidue != NULL)
-		*_dataResidue = dataResidue;
+		*_dataResidue = remaining;
 
 	return retval;
 }
@@ -301,6 +318,59 @@ static s32 __usbstorage_reset(important_storage_data *dev)
 	udelay(60*1000);
 	USB_ClearHalt(dev->usb_fd, dev->ep_in);udelay(10000); //from http://www.usb.org/developers/devclass_docs/usbmassbulk_10.pdf
 	USB_ClearHalt(dev->usb_fd, dev->ep_out);udelay(10000);
+	return retval;
+}
+
+// Returns the sense key, or a negative error
+static s32 __request_sense(important_storage_data *dev, u8 lun)
+{
+	u8 cmd[] = {SCSI_REQUEST_SENSE, lun << 5, 0, 0, SCSI_SENSE_REPLY_SIZE, 0};
+	u8 sense[SCSI_SENSE_REPLY_SIZE];
+	memset(sense, 0, SCSI_SENSE_REPLY_SIZE);
+	s32 retval = __cycle(dev, lun, sense, SCSI_SENSE_REPLY_SIZE, cmd, sizeof(cmd), 0, NULL, NULL);
+	if (retval < 0)
+		return retval;
+	return sense[2] & 0xF;
+}
+
+// Runs a command and checks the CSW status, which used to be ignored: a write
+// the device rejected counted as written. A failed command is followed by
+// REQUEST SENSE, as on other hosts, and retried when the device is only busy
+// or reporting a unit attention.
+static s32 __command(important_storage_data *dev, u8 *buffer, u32 len, u8 *cb, u8 cbLen, u8 write)
+{
+	s32 retval = USBSTORAGE_ESTATUS;
+	int attempt;
+
+	for (attempt = 0; attempt < USBSTORAGE_COMMAND_RETRIES; attempt++)
+	{
+		u8 status = 0;
+		u32 dataResidue = 0;
+		retval = __cycle(dev, dev->lun, buffer, len, cb, cbLen, write, &status, &dataResidue);
+		if (retval < 0)
+			return retval;
+
+		if (status == CSW_STATUS_PASSED)
+			return dataResidue == 0 ? USBSTORAGE_OK : USBSTORAGE_EDATARESIDUE;
+
+		if (status != CSW_STATUS_FAILED)
+		{
+			// Phase error: the device needs reset recovery (bulk-only 6.7)
+			retval = USBSTORAGE_ESTATUS;
+			__usbstorage_reset(dev);
+			continue;
+		}
+
+		retval = __request_sense(dev, dev->lun);
+		if (retval == SCSI_SENSE_RECOVERED_ERROR)
+			return USBSTORAGE_OK;
+		if (retval != SCSI_SENSE_NO_SENSE && retval != SCSI_SENSE_NOT_READY && retval != SCSI_SENSE_UNIT_ATTENTION)
+			return USBSTORAGE_ESTATUS;
+
+		retval = USBSTORAGE_ESTATUS;
+		udelay(100*1000);
+	}
+
 	return retval;
 }
 
@@ -378,7 +448,6 @@ bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 	if (!__mounted)
 		return false;
 
-	u8 status = 0;
 	s32 retval;
 	u8 cmd[] = {
 		SCSI_READ_10,
@@ -393,9 +462,7 @@ bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer,  numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 0, &status, NULL);
-	if(retval > 0 && status != 0)
-		retval = USBSTORAGE_ESTATUS;
+	retval = __command(&__mounted_device, buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 0);
 
 	return retval >= 0;
 }
@@ -405,7 +472,6 @@ bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 	if (!__mounted)
 		return false;
 
-	u8 status = 0;
 	s32 retval;
 	u8 cmd[] = {
 		SCSI_WRITE_10,
@@ -420,9 +486,7 @@ bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, (u8*)buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 1, &status, NULL);
-	if(retval > 0 && status != 0)
-		retval = USBSTORAGE_ESTATUS;
+	retval = __command(&__mounted_device, (u8*)buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 1);
 
 	return retval >= 0;
 }
@@ -491,14 +555,8 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 		if (retval < 0)
 			continue;
 
-		u8 sense_cmd[] = {SCSI_REQUEST_SENSE, lun << 5, 0, 0, SCSI_SENSE_REPLY_SIZE, 0};
-		u8 sense_response[SCSI_SENSE_REPLY_SIZE];
-		memset(sense_response, 0, SCSI_SENSE_REPLY_SIZE);
-		retval = __cycle(dev, lun, sense_response, SCSI_SENSE_REPLY_SIZE, sense_cmd, 6, 0, NULL, NULL);
-		if (retval < 0)
-			continue;
-		u8 sense_key = sense_response[2] & 0xF;
-		if (sense_key == SCSI_SENSE_NOT_READY || sense_key == SCSI_SENSE_MEDIUM_ERROR || sense_key == SCSI_SENSE_HARDWARE_ERROR)
+		retval = __request_sense(dev, lun);
+		if (retval < 0 || retval == SCSI_SENSE_NOT_READY || retval == SCSI_SENSE_MEDIUM_ERROR || retval == SCSI_SENSE_HARDWARE_ERROR)
 			continue;
 
 		// see libogc/usbstorage.c: USBStorage_Inquiry
@@ -520,7 +578,8 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 
 		if (retval >= 0 && read_capacity_response[0] > 0 && read_capacity_response[1] >= 512)
 		{
-			dev->sector_count = read_capacity_response[0];
+			// READ CAPACITY returns the last LBA, not the count
+			dev->sector_count = read_capacity_response[0] + 1;
 			dev->sector_size = read_capacity_response[1];
 			dev->lun = lun;
 			return true;
@@ -635,9 +694,14 @@ bool __has_device_after_change()
 					u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_DEVICE;
 					retval = USB_WriteCtrlMsg(new_device.usb_fd, bmRequestType, USB_REQ_SETCONFIG, ucd->bConfigurationValue, 0, 0, NULL);
 
+					// The buffer must be 32-byte aligned or USB_ReadCtrlMsg returns
+					// IPC_EINVAL without sending anything. Single-LUN devices may
+					// stall this request (bulk-only 3.2), which means LUN 0.
 					bmRequestType = USB_CTRLTYPE_DIR_DEVICE2HOST | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
-					u8 max_lun = 0;
-					retval = USB_ReadCtrlMsg(new_device.usb_fd, bmRequestType, USBSTORAGE_GET_MAX_LUN, 0, new_device.interface, 1, &max_lun);
+					u8 max_lun_buf[32] ALIGNED(32);
+					max_lun_buf[0] = 0;
+					retval = USB_ReadCtrlMsg(new_device.usb_fd, bmRequestType, USBSTORAGE_GET_MAX_LUN, 0, new_device.interface, 1, max_lun_buf);
+					u8 max_lun = retval >= 0 ? (max_lun_buf[0] & 0xF) : 0;
 					if (__setValidLun(&new_device, max_lun))
 					{
 						memcpy(&__mounted_device, &new_device, sizeof(important_storage_data));
