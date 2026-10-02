@@ -1918,7 +1918,7 @@ void ReconfigVideo(GXRModeObj *vidmode)
  */
 void PrintLoadKernelError(LoadKernelError_t iosErr, int err)
 {
-	ClearScreen();
+	InitialiseBg();
 	PrintBuildInfo();
 	PrintFormat(DEFAULT_SIZE, MAROON, MENU_POS_X, MENU_POS_Y + 20*4, "Failed to load IOS58 from NAND:");
 
