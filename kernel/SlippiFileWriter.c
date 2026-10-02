@@ -20,10 +20,6 @@
 
 #define FOOTER_BUFFER_LENGTH 200
 
-// Attempts to finish the previous replay before giving up on it and
-// recording the next game
-#define DANGLING_FILE_ATTEMPTS 10
-
 static u32 SlippiHandlerThread(void *arg);
 
 // Thread stuff
@@ -35,6 +31,10 @@ extern u8 wifi_mac_address[6]; // Used to identify replays
 
 // File object
 FIL currentFile;
+
+// A previous replay that could not be finished when the next game started.
+// It is retried in the background so the next game can record meanwhile.
+FIL parkedFile;
 
 // vars for metadata generation
 u32 gameStartTime;
@@ -230,6 +230,13 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 	return fRes;
 }
 
+// Writes the footer if the replay is valid, then closes it. Safe to retry.
+static FRESULT finishFile(FIL *file, bool valid, s32 lastFrame, u32 writtenByteCount)
+{
+	FRESULT res = valid ? completeFile(file, lastFrame, writtenByteCount) : FR_OK;
+	return res == FR_OK ? f_close(file) : res;
+}
+
 static u32 SlippiHandlerThread(void *arg)
 {
 	dbgprintf("Slippi Thread ID: %d\r\n", thread_get_id());
@@ -239,13 +246,20 @@ static u32 SlippiHandlerThread(void *arg)
 	static u64 memReadPos = 0;
 
 	u32 writtenByteCount = 0;
+	u32 lastGameStartTime = 0;
+	u64 fileGamePos = ~0ULL;
 	s32 lastFrame;
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
 	bool failedToMount = false;
-	u32 danglingFileAttempts = 0;
+	bool parkedOpen = false;
+	bool parkedValid = false;
+	s32 parkedLastFrame = 0;
+	u32 parkedByteCount = 0;
 	u32 writeFailures = 0;
+	u32 finishFailures = 0;
+	bool gameEnded = false;
 	bool currentFileOpen = false;
 	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
@@ -269,6 +283,8 @@ static u32 SlippiHandlerThread(void *arg)
 				failedToMount = false;
 				currentFileOpen = false;
 				currentFileValid = false;
+				gameEnded = false;
+				parkedOpen = false;
 				mounted = false;
 				continue;
 			}
@@ -307,15 +323,46 @@ static u32 SlippiHandlerThread(void *arg)
 
 		while (1)
 		{
+			if (parkedOpen && finishFile(&parkedFile, parkedValid, parkedLastFrame, parkedByteCount) == FR_OK)
+			{
+				ReplayLog("replay: saved the previous replay, %u bytes", parkedByteCount);
+				parkedOpen = false;
+			}
+
+			// Finish a replay as soon as its game ends, retrying every cycle. The
+			// last game of a set has no next game to trigger the dangling-file path.
+			if (gameEnded)
+			{
+				FRESULT finishResult = finishFile(&currentFile, currentFileValid, lastFrame, writtenByteCount);
+				if (finishResult == FR_OK)
+				{
+					ReplayLog("replay: saved, %u bytes", writtenByteCount);
+					gameEnded = false;
+					currentFileValid = false;
+					currentFileOpen = false;
+					finishFailures = 0;
+					if (replaysLED)
+						flashLED();
+				}
+				else if (finishFailures++ == 0)
+				{
+					ReplayLog("replay: finishing the replay failed: %d", finishResult);
+				}
+			}
+
 			// Read from memory and write to file
 			SlpMemError err = SlippiMemoryRead(&reader, readBuf, READ_BUF_SIZE, memReadPos);
 			if (err)
 			{
-				// all possible errors render the current file incompletable, so let's jump ahead
+				memReadPos = SlippiRestoreReadPos();
+
+				// A game that already ended keeps retrying its footer above; a
+				// replay in the middle of a game can no longer be completed
+				if (gameEnded)
+					break;
 				if (currentFileValid)
 					ReplayLog("replay: lost the game data (%d) after %u bytes, replay left partial", err, writtenByteCount);
 				currentFileValid = false;
-				memReadPos = SlippiRestoreReadPos();
 				if (currentFileOpen)
 				{
 					FRESULT closeResult = f_close(&currentFile);
@@ -342,26 +389,47 @@ static u32 SlippiHandlerThread(void *arg)
 			{
 				if (currentFileOpen)
 				{
-					FRESULT danglingResult = currentFileValid ? completeFile(&currentFile, lastFrame, writtenByteCount) : FR_OK;
+					FRESULT danglingResult = finishFile(&currentFile, currentFileValid, lastFrame, writtenByteCount);
 					if (danglingResult == FR_OK)
-						danglingResult = f_close(&currentFile);
-					if (danglingResult != FR_OK)
 					{
-						if (danglingFileAttempts == 0)
-							ReplayLog("replay: finishing the previous replay failed: %d", danglingResult);
-						if (++danglingFileAttempts < DANGLING_FILE_ATTEMPTS)
-							break;
-
-						// Leave the partial replay behind instead of missing every later game
-						ReplayLog("replay: gave up on the previous replay after %u attempts", danglingFileAttempts);
+						if (currentFileValid)
+							ReplayLog("replay: saved, %u bytes", writtenByteCount);
 					}
-					danglingFileAttempts = 0;
+					else if (!parkedOpen)
+					{
+						// FIL holds no buffer of its own (_FS_TINY), so a copy carries the
+						// open file. Keep retrying it while the next game records.
+						ReplayLog("replay: finishing the previous replay failed: %d, retrying in the background", danglingResult);
+						parkedFile = currentFile;
+						parkedOpen = true;
+						parkedValid = currentFileValid;
+						parkedLastFrame = lastFrame;
+						parkedByteCount = writtenByteCount;
+					}
+					else
+					{
+						// Only during an outage longer than a whole game
+						ReplayLog("replay: finishing the previous replay failed: %d, left partial", danglingResult);
+					}
+					finishFailures = 0;
+					gameEnded = false;
 					currentFileValid = false;
 					currentFileOpen = false;
 				}
 
 				dbgprintf("Creating File...\r\n");
-				gameStartTime = GetCurrentTime();
+				// Names have one-second resolution, and catching up after a stall can
+				// reach two games in the same second. FA_CREATE_ALWAYS would then
+				// overwrite the first, so keep start times distinct. A retry for the
+				// same game keeps its name so it replaces the failed attempt.
+				if (memReadPos != fileGamePos)
+				{
+					gameStartTime = GetCurrentTime();
+					if (gameStartTime <= lastGameStartTime)
+						gameStartTime = lastGameStartTime + 1;
+					lastGameStartTime = gameStartTime;
+					fileGamePos = memReadPos;
+				}
 				char *fileName = generateFileName();
 				// Maybe can remove FA_READ since network thread doesn't share &currentFile
 				FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
@@ -425,28 +493,8 @@ static u32 SlippiHandlerThread(void *arg)
 				{
 					dbgprintf("Completing File...\r\n");
 					lastFrame = reader.metadata.lastFrame;
-					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
-					if (completeResult != FR_OK)
-					{
-						ReplayLog("replay: finishing the replay failed: %d", completeResult);
-						break;
-					}
-
-					currentFileValid = false;
-					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult != FR_OK)
-					{
-						ReplayLog("replay: closing the replay failed: %d", closeResult);
-					}
-					else
-					{
-						ReplayLog("replay: saved, %u bytes", writtenByteCount);
-						currentFileOpen = false;
-						if (replaysLED)
-							flashLED();
-					}
-
-					break;
+					gameEnded = true;
+					continue; // finished at the top of the loop
 				}
 				else if (replaysLED)
 					flashLED();
