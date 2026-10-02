@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "SlippiMemory.h"
 #include "SlippiFileWriter.h"
+#include "ReplayLog.h"
 #include "SlippiNetwork.h"
 #include "SlippiNetworkBroadcast.h"
 #include "net.h"
@@ -350,6 +351,10 @@ int _main( int argc, char *argv[] )
 		if (sdhc_log_init() == -1)
 			dbgprintf("Couldn't initialize SD card log!\r\n");
 	}
+
+	// Replays go to USB while the game runs from SD
+	if (SlippiFileWrite == 1 && !UseUSB)
+		ReplayLogInit();
 	
 	// Stop automatically emitting logs to EXI by default. From now on,
 	// we will only send log messages on the EXI bus if we've determined
@@ -517,6 +522,10 @@ int _main( int argc, char *argv[] )
 				GCNCard_Save();
 				SaveCard = false;
 			}
+		}
+		else if (ReplayLogPending()) /* same as card saves: only write to SD while DI is idle */
+		{
+			ReplayLogFlush();
 		}
 		else if(UseUSB && TimerDiffSeconds(USBReadTimer) > 149) /* Read random sector every 2 mins 30 secs */
 		{

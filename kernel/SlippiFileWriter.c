@@ -8,6 +8,7 @@
 
 #include "Config.h"
 #include "usbstorage.h"
+#include "ReplayLog.h"
 
 // use common physical sector size so as to write efficiently
 // and not excessively wear out the underlying flash storage
@@ -30,6 +31,10 @@ extern u8 wifi_mac_address[6]; // Used to identify replays
 
 // File object
 FIL currentFile;
+
+// A previous replay that could not be finished when the next game started.
+// It is retried in the background so the next game can record meanwhile.
+FIL parkedFile;
 
 // vars for metadata generation
 u32 gameStartTime;
@@ -123,6 +128,21 @@ FRESULT writeHeader(FIL *file)
 	return f_write(file, header, sizeof(header), &wrote);
 }
 
+// FatFs latches the first disk error in fp->err and fails every later
+// f_lseek/f_write on that handle, so without this a single failed USB transfer
+// ends the replay and blocks every game after it. Rewinding first makes
+// f_lseek rebuild the current cluster from the chain, since an aborted f_write
+// can leave fp->clust ahead of fp->fptr.
+static FRESULT seekFile(FIL *file, FSIZE_t ofs)
+{
+	if (file->err)
+	{
+		file->err = 0;
+		f_lseek(file, 0);
+	}
+	return f_lseek(file, ofs);
+}
+
 FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 {
 	u8 footer[FOOTER_BUFFER_LENGTH];
@@ -180,7 +200,7 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 
 	// Write footer
 	// Always seek first in case there was a previous failure with partial write
-	FRESULT fRes = f_lseek(file, writtenByteCount + 15);
+	FRESULT fRes = seekFile(file, writtenByteCount + 15);
 	if (fRes != FR_OK)
 	{
 		dbgprintf("Slippi: failed to seek before writing footer, errno: %d\r\n", fRes);
@@ -196,7 +216,7 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 	}
 
 	// Write length
-	fRes = f_lseek(file, 11);
+	fRes = seekFile(file, 11);
 	if (fRes != FR_OK)
 	{
 		dbgprintf("Slippi: failed to seek before writing length, errno: %d\r\n", fRes);
@@ -210,6 +230,13 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 	return fRes;
 }
 
+// Writes the footer if the replay is valid, then closes it. Safe to retry.
+static FRESULT finishFile(FIL *file, bool valid, s32 lastFrame, u32 writtenByteCount)
+{
+	FRESULT res = valid ? completeFile(file, lastFrame, writtenByteCount) : FR_OK;
+	return res == FR_OK ? f_close(file) : res;
+}
+
 static u32 SlippiHandlerThread(void *arg)
 {
 	dbgprintf("Slippi Thread ID: %d\r\n", thread_get_id());
@@ -219,11 +246,20 @@ static u32 SlippiHandlerThread(void *arg)
 	static u64 memReadPos = 0;
 
 	u32 writtenByteCount = 0;
+	u32 lastGameStartTime = 0;
+	u64 fileGamePos = ~0ULL;
 	s32 lastFrame;
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
 	bool failedToMount = false;
+	bool parkedOpen = false;
+	bool parkedValid = false;
+	s32 parkedLastFrame = 0;
+	u32 parkedByteCount = 0;
+	u32 writeFailures = 0;
+	u32 finishFailures = 0;
+	bool gameEnded = false;
 	bool currentFileOpen = false;
 	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
@@ -247,6 +283,8 @@ static u32 SlippiHandlerThread(void *arg)
 				failedToMount = false;
 				currentFileOpen = false;
 				currentFileValid = false;
+				gameEnded = false;
+				parkedOpen = false;
 				mounted = false;
 				continue;
 			}
@@ -255,7 +293,7 @@ static u32 SlippiHandlerThread(void *arg)
 				FRESULT mountResult = f_mount_char(devices[1], "usb:", 1);
 				if (mountResult != FR_OK)
 				{
-					dbgprintf("Slippi: failed to mount usb, errno: %d\r\n", mountResult);
+					ReplayLog("replay: mounting the drive failed: %d", mountResult);
 
 					// only attempt to mount once, user can retry by re-inserting the device.
 					failedToMount = true;
@@ -266,7 +304,7 @@ static u32 SlippiHandlerThread(void *arg)
 				FRESULT mkdirResult = f_mkdir_secondary_drive("/Slippi");
 				if (mkdirResult != FR_OK && mkdirResult != FR_EXIST)
 				{
-					dbgprintf("Slippi: failed to mkdir: /Slippi, errno: %d\r\n", mkdirResult);
+					ReplayLog("replay: creating /Slippi failed: %d", mkdirResult);
 
 					// only attempt to mount once, user can retry by re-inserting the device.
 					failedToMount = true;
@@ -277,6 +315,7 @@ static u32 SlippiHandlerThread(void *arg)
 				// game if the usb device is inserted after game start.
 				memReadPos = SlippiRestoreReadPos();
 				mounted = true;
+				ReplayLog("replay: drive mounted");
 			}
 			if (!mounted)
 				continue;
@@ -284,13 +323,46 @@ static u32 SlippiHandlerThread(void *arg)
 
 		while (1)
 		{
+			if (parkedOpen && finishFile(&parkedFile, parkedValid, parkedLastFrame, parkedByteCount) == FR_OK)
+			{
+				ReplayLog("replay: saved the previous replay, %u bytes", parkedByteCount);
+				parkedOpen = false;
+			}
+
+			// Finish a replay as soon as its game ends, retrying every cycle. The
+			// last game of a set has no next game to trigger the dangling-file path.
+			if (gameEnded)
+			{
+				FRESULT finishResult = finishFile(&currentFile, currentFileValid, lastFrame, writtenByteCount);
+				if (finishResult == FR_OK)
+				{
+					ReplayLog("replay: saved, %u bytes", writtenByteCount);
+					gameEnded = false;
+					currentFileValid = false;
+					currentFileOpen = false;
+					finishFailures = 0;
+					if (replaysLED)
+						flashLED();
+				}
+				else if (finishFailures++ == 0)
+				{
+					ReplayLog("replay: finishing the replay failed: %d", finishResult);
+				}
+			}
+
 			// Read from memory and write to file
 			SlpMemError err = SlippiMemoryRead(&reader, readBuf, READ_BUF_SIZE, memReadPos);
 			if (err)
 			{
-				// all possible errors render the current file incompletable, so let's jump ahead
-				currentFileValid = false;
 				memReadPos = SlippiRestoreReadPos();
+
+				// A game that already ended keeps retrying its footer above; a
+				// replay in the middle of a game can no longer be completed
+				if (gameEnded)
+					break;
+				if (currentFileValid)
+					ReplayLog("replay: lost the game data (%d) after %u bytes, replay left partial", err, writtenByteCount);
+				currentFileValid = false;
 				if (currentFileOpen)
 				{
 					FRESULT closeResult = f_close(&currentFile);
@@ -315,45 +387,67 @@ static u32 SlippiHandlerThread(void *arg)
 
 			if (reader.lastReadResult.isNewGame)
 			{
-				if (currentFileValid)
-				{
-					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
-					if (completeResult != FR_OK)
-					{
-						dbgprintf("Slippi: failed to complete dangling file, errno: %d\r\n", completeResult);
-						break;
-					}
-					currentFileValid = false;
-				}
 				if (currentFileOpen)
 				{
-					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult != FR_OK)
+					FRESULT danglingResult = finishFile(&currentFile, currentFileValid, lastFrame, writtenByteCount);
+					if (danglingResult == FR_OK)
 					{
-						dbgprintf("Slippi: failed to close dangling file, errno: %d\r\n", closeResult);
-						break;
+						if (currentFileValid)
+							ReplayLog("replay: saved, %u bytes", writtenByteCount);
 					}
+					else if (!parkedOpen)
+					{
+						// FIL holds no buffer of its own (_FS_TINY), so a copy carries the
+						// open file. Keep retrying it while the next game records.
+						ReplayLog("replay: finishing the previous replay failed: %d, retrying in the background", danglingResult);
+						parkedFile = currentFile;
+						parkedOpen = true;
+						parkedValid = currentFileValid;
+						parkedLastFrame = lastFrame;
+						parkedByteCount = writtenByteCount;
+					}
+					else
+					{
+						// Only during an outage longer than a whole game
+						ReplayLog("replay: finishing the previous replay failed: %d, left partial", danglingResult);
+					}
+					finishFailures = 0;
+					gameEnded = false;
+					currentFileValid = false;
 					currentFileOpen = false;
 				}
 
 				dbgprintf("Creating File...\r\n");
-				gameStartTime = GetCurrentTime();
+				// Names have one-second resolution, and catching up after a stall can
+				// reach two games in the same second. FA_CREATE_ALWAYS would then
+				// overwrite the first, so keep start times distinct. A retry for the
+				// same game keeps its name so it replaces the failed attempt.
+				if (memReadPos != fileGamePos)
+				{
+					gameStartTime = GetCurrentTime();
+					if (gameStartTime <= lastGameStartTime)
+						gameStartTime = lastGameStartTime + 1;
+					lastGameStartTime = gameStartTime;
+					fileGamePos = memReadPos;
+				}
 				char *fileName = generateFileName();
 				// Maybe can remove FA_READ since network thread doesn't share &currentFile
 				FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
 				if (fileOpenResult != FR_OK)
 				{
-					dbgprintf("Slippi: failed to open file: %s, errno: %d\r\n", fileName, fileOpenResult);
+					ReplayLog("replay: creating %s failed: %d", fileName, fileOpenResult);
 					break;
 				}
 
 				currentFileOpen = true;
 				writtenByteCount = 0;
+				writeFailures = 0;
+				ReplayLog("replay: recording %s", fileName);
 				
 				FRESULT writeHeaderResult = writeHeader(&currentFile);
 				if (writeHeaderResult != FR_OK)
 				{
-					dbgprintf("Slippi: failed to write header, errno: %d\r\n", writeHeaderResult);
+					ReplayLog("replay: writing the header failed: %d", writeHeaderResult);
 					break;
 				}
 
@@ -372,22 +466,25 @@ static u32 SlippiHandlerThread(void *arg)
 			}
 
 			// Always seek first in case there was a previous failure with partial write
-			FRESULT seekResult = f_lseek(&currentFile, writtenByteCount + 15);
-			if (seekResult != FR_OK)
-			{
-				dbgprintf("Slippi: failed to seek before writing data, errno: %d\r\n", seekResult);
-				break;
-			}
-
 			UINT wrote;
-			FRESULT writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
+			FRESULT writeResult = seekFile(&currentFile, writtenByteCount + 15);
+			if (writeResult == FR_OK)
+				writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
 			if (writeResult != FR_OK)
 			{
-				dbgprintf("Slippi: failed to write data, errno: %d\r\n", writeResult);
+				// Retried every cycle, so log the first failure and the recovery
+				if (writeFailures++ == 0)
+					ReplayLog("replay: write at byte %u failed: %d", writtenByteCount, writeResult);
 				break;
 			}
 			else
 			{
+				if (writeFailures > 0)
+				{
+					ReplayLog("replay: writing resumed after %u retries", writeFailures);
+					writeFailures = 0;
+				}
+
 				// Only increment mem read position when the write fully succeeds
 				memReadPos += wrote;
 				writtenByteCount += wrote;
@@ -396,27 +493,8 @@ static u32 SlippiHandlerThread(void *arg)
 				{
 					dbgprintf("Completing File...\r\n");
 					lastFrame = reader.metadata.lastFrame;
-					FRESULT completeResult = completeFile(&currentFile, lastFrame, writtenByteCount);
-					if (completeResult != FR_OK)
-					{
-						// error is logged in completeFile
-						break;
-					}
-
-					currentFileValid = false;
-					FRESULT closeResult = f_close(&currentFile);
-					if (closeResult != FR_OK)
-					{
-						dbgprintf("Slippi: failed to close completed file, errno: %d\r\n", closeResult);
-					}
-					else
-					{
-						currentFileOpen = false;
-						if (replaysLED)
-							flashLED();
-					}
-
-					break;
+					gameEnded = true;
+					continue; // finished at the top of the loop
 				}
 				else if (replaysLED)
 					flashLED();
