@@ -310,14 +310,26 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 	return retval;
 }
 
+// USB_ClearHalt is IOS's CANCELENDPOINT, which only cancels the host's
+// transfers. A device that stalled an endpoint keeps it halted until it
+// receives CLEAR_FEATURE(ENDPOINT_HALT), and the class reset alone does not
+// clear it (bulk-only 3.1), so without this every later command fails.
+static void __clear_halt(important_storage_data *dev, u8 ep)
+{
+	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_ENDPOINT;
+	USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USB_REQ_CLEARFEATURE, USB_FEATURE_ENDPOINT_HALT, ep, 0, NULL);
+	USB_ClearHalt(dev->usb_fd, ep);
+}
+
+// Reset recovery, bulk-only 5.3.4
 static s32 __usbstorage_reset(important_storage_data *dev)
 {
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
 	s32 retval = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USBSTORAGE_RESET, 0, dev->interface, 0, NULL);
 
 	udelay(60*1000);
-	USB_ClearHalt(dev->usb_fd, dev->ep_in);udelay(10000); //from http://www.usb.org/developers/devclass_docs/usbmassbulk_10.pdf
-	USB_ClearHalt(dev->usb_fd, dev->ep_out);udelay(10000);
+	__clear_halt(dev, dev->ep_in);udelay(10000);
+	__clear_halt(dev, dev->ep_out);udelay(10000);
 	return retval;
 }
 
