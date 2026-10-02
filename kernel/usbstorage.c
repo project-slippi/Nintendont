@@ -301,8 +301,9 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 				retval = USBSTORAGE_OK;
 				break;
 			}
-			else if (retval != USBSTORAGE_ETIMEDOUT)
+			else if (retval >= 0)
 				retval = USBSTORAGE_EDATARESIDUE;
+			// otherwise keep the IOS error, which the log reports
 		}
 		remaining = _len;
 
