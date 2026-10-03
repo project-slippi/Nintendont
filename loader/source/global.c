@@ -336,6 +336,7 @@ bool LoadNinCFG(void)
 				ConfigLoaded = false;
 			break;
 		case 0xD:
+		case 0xE: // 1.13.1
 			if (BytesRead != sizeof(NIN_CFG)) // 324
 				ConfigLoaded = false;
 			break;
