@@ -248,6 +248,9 @@ static u32 SlippiHandlerThread(void *arg)
 	u32 writtenByteCount = 0;
 	u32 lastGameStartTime = 0;
 	u64 fileGamePos = ~0ULL;
+	// Buffer position up to which every game has been saved, so a remount
+	// does not record those games again
+	u64 savedThrough = 0;
 	s32 lastFrame;
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
@@ -257,6 +260,7 @@ static u32 SlippiHandlerThread(void *arg)
 	bool parkedValid = false;
 	s32 parkedLastFrame = 0;
 	u32 parkedByteCount = 0;
+	u64 parkedEndPos = 0;
 	u32 writeFailures = 0;
 	u32 finishFailures = 0;
 	bool gameEnded = false;
@@ -311,11 +315,16 @@ static u32 SlippiHandlerThread(void *arg)
 					continue;
 				}
 
-				// ignore anything already in the buffer. users should not expect to record a
-				// game if the usb device is inserted after game start.
-				memReadPos = SlippiRestoreReadPos();
+				// Go back to the oldest unsaved game whose start is still in the
+				// buffer, so a game survives the drive being bumped out or inserted
+				// late. A game that started too long ago is skipped.
+				memReadPos = SlippiOldestGameStartFrom(savedThrough);
 				mounted = true;
-				ReplayLog("replay: drive mounted");
+				u64 behind = SlippiRestoreReadPos() - memReadPos;
+				if (behind > 0)
+					ReplayLog("replay: drive mounted, recording from a game that started %u KB ago", (u32)(behind / 1024));
+				else
+					ReplayLog("replay: drive mounted");
 			}
 			if (!mounted)
 				continue;
@@ -327,6 +336,8 @@ static u32 SlippiHandlerThread(void *arg)
 			{
 				ReplayLog("replay: saved the previous replay, %u bytes", parkedByteCount);
 				parkedOpen = false;
+				if (parkedEndPos > savedThrough)
+					savedThrough = parkedEndPos;
 			}
 
 			// Finish a replay as soon as its game ends, retrying every cycle. The
@@ -337,6 +348,8 @@ static u32 SlippiHandlerThread(void *arg)
 				if (finishResult == FR_OK)
 				{
 					ReplayLog("replay: saved, %u bytes", writtenByteCount);
+					if (memReadPos > savedThrough)
+						savedThrough = memReadPos;
 					gameEnded = false;
 					currentFileValid = false;
 					currentFileOpen = false;
@@ -394,6 +407,8 @@ static u32 SlippiHandlerThread(void *arg)
 					{
 						if (currentFileValid)
 							ReplayLog("replay: saved, %u bytes", writtenByteCount);
+						if (memReadPos > savedThrough)
+							savedThrough = memReadPos;
 					}
 					else if (!parkedOpen)
 					{
@@ -405,6 +420,7 @@ static u32 SlippiHandlerThread(void *arg)
 						parkedValid = currentFileValid;
 						parkedLastFrame = lastFrame;
 						parkedByteCount = writtenByteCount;
+						parkedEndPos = memReadPos;
 					}
 					else
 					{
