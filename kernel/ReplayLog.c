@@ -110,6 +110,16 @@ static void writeLine(const char *line)
 	sessionBytes += len;
 }
 
+static void writeStamped(u32 when, const char *text)
+{
+	char buffer[LOG_LINE_LENGTH + 32];
+	struct tm *t = gmtime(&when);
+	_sprintf(buffer, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n",
+		t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+		t->tm_hour, t->tm_min, t->tm_sec, text);
+	writeLine(buffer);
+}
+
 void ReplayLogFlush(void)
 {
 	char buffer[LOG_LINE_LENGTH + 32];
@@ -119,12 +129,7 @@ void ReplayLogFlush(void)
 	{
 		barrier();
 		LogLine *line = &lines[tail];
-		u32 when = now - TicksToSecs(read32(HW_TIMER) - line->tick);
-		struct tm *t = gmtime(&when);
-		_sprintf(buffer, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n",
-			t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
-			t->tm_hour, t->tm_min, t->tm_sec, line->text);
-		writeLine(buffer);
+		writeStamped(now - TicksToSecs(read32(HW_TIMER) - line->tick), line->text);
 		barrier();
 		tail = (tail + 1) % LOG_SLOTS;
 	}
@@ -145,4 +150,27 @@ void ReplayLogFlush(void)
 
 	f_sync(&logFile);
 	lastFlush = read32(HW_TIMER);
+}
+
+void ReplayLogMainThread(const char *fmt, ...)
+{
+	char text[0x100];
+	va_list args;
+	va_start(args, fmt);
+	_vsprintf(text, fmt, args);
+	va_end(args);
+
+	dbgprintf("%s\r\n", text);
+
+	if (!active)
+		return;
+
+	// queued lines first, so the file stays in order
+	ReplayLogFlush();
+	if (!active)
+		return;
+
+	text[LOG_LINE_LENGTH - 1] = 0;
+	writeStamped(GetCurrentTime(), text);
+	f_sync(&logFile);
 }

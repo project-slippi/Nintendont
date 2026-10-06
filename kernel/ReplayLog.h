@@ -18,4 +18,8 @@ void ReplayLog(const char *fmt, ...);
 bool ReplayLogPending(void);
 void ReplayLogFlush(void);
 
+// Main thread, only while no disc read is in flight. Writes straight to the
+// file, for reports about the Slippi thread while it is stuck.
+void ReplayLogMainThread(const char *fmt, ...);
+
 #endif

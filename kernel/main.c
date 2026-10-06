@@ -523,7 +523,11 @@ int _main( int argc, char *argv[] )
 				SaveCard = false;
 			}
 		}
-		else if (ReplayLogPending()) /* same as card saves: only write to SD while DI is idle */
+		else if (USBStorage_StuckReportDue()) /* same as card saves: only write to SD while DI is idle */
+		{
+			USBStorage_ReportStuck_MainThread();
+		}
+		else if (ReplayLogPending())
 		{
 			ReplayLogFlush();
 		}

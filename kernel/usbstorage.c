@@ -217,7 +217,9 @@ typedef struct
 	u32 residue;	// bytes the data stage came up short
 } usb_history_entry;
 
-static const char *const __stage_names[] = {"", "CBW", "data", "CSW"};
+#define USBSTUCK_SECS				5
+
+static const char *const __stage_names[] = {"", "CBW", "data", "CSW", "reset"};
 static usb_history_entry __history[USBHIST_SIZE];
 static u32 __history_count = 0;
 static u32 __history_logged = 0;
@@ -259,7 +261,7 @@ static void __history_format(char *out, const usb_history_entry *h)
 }
 
 // Logs the commands recorded since the last dump, several to a line
-static void __history_dump(void)
+static void __history_dump_with(void (*log)(const char *fmt, ...))
 {
 	char line[96], entry[40];
 	u32 i = __history_count - __history_logged > USBHIST_SIZE ? __history_count - USBHIST_SIZE : __history_logged;
@@ -269,14 +271,84 @@ static void __history_dump(void)
 		__history_format(entry, &__history[i % USBHIST_SIZE]);
 		if (line[0] && strlen(line) + strlen(entry) + 3 > 80)
 		{
-			ReplayLog("usb: cmds %s", line);
+			log("usb: cmds %s", line);
 			line[0] = 0;
 		}
 		_sprintf(line + strlen(line), "%s%s", line[0] ? " | " : "", entry);
 	}
 	if (line[0])
-		ReplayLog("usb: cmds %s", line);
+		log("usb: cmds %s", line);
 	__history_logged = __history_count;
+}
+
+static void __history_dump(void)
+{
+	__history_dump_with(ReplayLog);
+}
+
+// The IOS transfer in progress, so the main thread can report one that never
+// returns: the driver has no timeouts, so a frozen drive blocks the Slippi
+// thread with nothing logged.
+static volatile u32 __inflight_start = 0;	// HW_TIMER at the start, 0 when idle
+static volatile u32 __inflight_seq = 0;
+static volatile u8 __inflight_op, __inflight_stage;
+static volatile u32 __inflight_arg;
+static volatile u16 __inflight_count;
+static u32 __stuck_reported_seq = 0;
+
+static void __inflight_command(const u8 *cb, u32 len)
+{
+	__inflight_op = cb[0];
+	if (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10)
+	{
+		__inflight_arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
+		__inflight_count = cb[7] << 8 | cb[8];
+	}
+	else
+	{
+		__inflight_arg = len;
+		__inflight_count = 0;
+	}
+}
+
+static void __inflight_begin(u8 stage)
+{
+	__inflight_stage = stage;
+	__inflight_seq++;
+	__inflight_start = read32(HW_TIMER) | 1;
+}
+
+static void __inflight_end(void)
+{
+	__inflight_start = 0;
+}
+
+// Main thread
+bool USBStorage_StuckReportDue(void)
+{
+	u32 start = __inflight_start;
+	return start != 0 && __inflight_seq != __stuck_reported_seq &&
+		read32(HW_TIMER) - start >= USBSTUCK_SECS * 1000 * TICKS_PER_MS;
+}
+
+// Main thread, only while no disc read is in flight. The Slippi thread is
+// blocked in IOS, so its log queue and command history are not changing.
+void USBStorage_ReportStuck_MainThread(void)
+{
+	if (!USBStorage_StuckReportDue())
+		return; /* it returned in the meantime */
+	__stuck_reported_seq = __inflight_seq;
+	u32 secs = (read32(HW_TIMER) - __inflight_start) / (1000 * TICKS_PER_MS);
+	if (__inflight_op == USBHIST_RESET)
+		ReplayLogMainThread("usb: reset recovery has not returned after %u s", secs);
+	else if (__inflight_count)
+		ReplayLogMainThread("usb: op %02X %X+%u has not returned from the %s stage after %u s",
+			__inflight_op, __inflight_arg, __inflight_count, __stage_names[__inflight_stage], secs);
+	else
+		ReplayLogMainThread("usb: op %02X %ub has not returned from the %s stage after %u s",
+			__inflight_op, __inflight_arg, __stage_names[__inflight_stage], secs);
+	__history_logged = __history_count > USBHIST_SIZE ? __history_count - USBHIST_SIZE : 0;
+	__history_dump_with(ReplayLogMainThread);
 }
 
 static s32 __send_cbw(important_storage_data *dev, u8 lun, u32 len, u8 flags, const u8 *cb, u8 cbLen)
@@ -353,8 +425,12 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 			break;
 
 		u32 start = read32(HW_TIMER);
+		u32 first_seq = __inflight_seq;
+		__inflight_command(cb, len);
 		stage = 1;
+		__inflight_begin(1);
 		retval = __send_cbw(dev, lun, len, (write ? CBW_OUT:CBW_IN), cb, cbLen);
+		__inflight_end();
 		if (retval >= 0)
 			stage = 2;
 
@@ -362,6 +438,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		{
 			u32 thisLen = _len > max_size ? max_size : _len;
 
+			__inflight_begin(2);
 			if ((u32)_buffer&0x1F || !((u32)_buffer&0x10000000))
 			{
 				if(write) memcpy(transferbuffer, _buffer, thisLen);
@@ -370,6 +447,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 			}
 			else
 				retval = USB_WriteBlkMsg(dev->usb_fd, ep, thisLen, _buffer);
+			__inflight_end();
 			if (retval == thisLen)
 			{
 				_len -= retval;
@@ -392,7 +470,9 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		if (retval >= 0)
 		{
 			stage = 3;
+			__inflight_begin(3);
 			retval = __read_csw(dev, &status, NULL);
+			__inflight_end();
 		}
 
 		usb_history_entry *h = __history_add(cb[0]);
@@ -409,6 +489,9 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		}
 		else
 			h->arg = len;
+
+		if (__stuck_reported_seq > first_seq)
+			ReplayLog("usb: the stuck op %02X returned after %u ms: %d", cb[0], ms, retval);
 
 		if (retval < 0) {
 			if (__failed_commands < USBLOG_DETAIL_LIMIT)
@@ -452,7 +535,10 @@ static void __clear_halt(important_storage_data *dev, u8 ep)
 static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt)
 {
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
+	__inflight_op = USBHIST_RESET;
+	__inflight_begin(4);
 	s32 retval = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USBSTORAGE_RESET, 0, dev->interface, 0, NULL);
+	__inflight_end();
 
 	usb_history_entry *h = __history_add(USBHIST_RESET);
 	h->clear = clear_device_halt;
