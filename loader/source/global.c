@@ -335,7 +335,8 @@ bool LoadNinCFG(void)
 				BytesRead != 320) // 1.9.3, 1.9.4, 1.10.1, 1.10.2, 1.11.0, 1.11.1
 				ConfigLoaded = false;
 			break;
-		case 0xD:
+		case 0xD: // 1.12.0, 1.13.0
+		case 0xE: // 1.13.1
 			if (BytesRead != sizeof(NIN_CFG)) // 324
 				ConfigLoaded = false;
 			break;
@@ -473,11 +474,11 @@ void UpdateNinCFG()
 	{
 		switch(ncfg->MeleeCodeOptions[0])
 		{
-			case 3: // UCF 0.84 Old
-				ncfg->MeleeCodeOptions[0] = 1;
-				break;
-			case 4: // UCF 0.84 Stealth
+			case 4: // UCF 0.84 Old
 				ncfg->MeleeCodeOptions[0] = 2;
+				break;
+			case 5: // UCF 0.84 Stealth
+				ncfg->MeleeCodeOptions[0] = 3;
 				break;
 		}
 		ncfg->Version = 0xE;
