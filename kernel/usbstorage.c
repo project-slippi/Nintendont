@@ -198,6 +198,87 @@ static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_hal
 static u32 __failed_commands = 0;
 #define USBLOG(...) do { if (__failed_commands < USBLOG_DETAIL_LIMIT) ReplayLog(__VA_ARGS__); } while (0)
 
+// Flight recorder: the last USB commands, written to the log when one fails
+// so each failure comes with what led up to it
+#define USBHIST_SIZE				16
+#define USBHIST_RESET				0xFF
+#define TICKS_PER_MS				1898
+
+typedef struct
+{
+	u8 op;			// SCSI opcode, or USBHIST_RESET for reset recovery
+	u8 status;		// CSW status
+	u8 stage;		// where the transfer failed (1 CBW, 2 data, 3 CSW), or 0
+	u8 clear;		// reset recovery sent CLEAR_FEATURE
+	u32 arg;		// first sector for READ/WRITE, sense for REQUEST SENSE, else bytes
+	u16 count;		// sectors for READ/WRITE
+	u16 ms;
+	s32 err;
+	u32 residue;	// bytes the data stage came up short
+} usb_history_entry;
+
+static const char *const __stage_names[] = {"", "CBW", "data", "CSW"};
+static usb_history_entry __history[USBHIST_SIZE];
+static u32 __history_count = 0;
+static u32 __history_logged = 0;
+
+static usb_history_entry *__history_add(u8 op)
+{
+	usb_history_entry *h = &__history[__history_count++ % USBHIST_SIZE];
+	memset(h, 0, sizeof(usb_history_entry));
+	h->op = op;
+	return h;
+}
+
+static void __history_format(char *out, const usb_history_entry *h)
+{
+	if (h->op == USBHIST_RESET)
+		_sprintf(out, "reset%s %d", h->clear ? "+clear" : "", h->err);
+	else if (h->op == SCSI_READ_10 || h->op == SCSI_WRITE_10)
+		_sprintf(out, "%02X %X+%u", h->op, h->arg, h->count);
+	else if (h->op == SCSI_REQUEST_SENSE && h->stage == 0)
+		_sprintf(out, "03 sense %X/%04X", h->arg >> 16, h->arg & 0xFFFF);
+	else
+		_sprintf(out, "%02X %ub", h->op, h->arg);
+	out += strlen(out);
+
+	if (h->op != USBHIST_RESET)
+	{
+		if (h->stage)
+			_sprintf(out, " %s %d", __stage_names[h->stage], h->err);
+		else if (h->status)
+			_sprintf(out, " st%u", h->status);
+		else if (h->residue)
+			_sprintf(out, " short %u", h->residue);
+		else
+			_sprintf(out, " ok");
+		out += strlen(out);
+	}
+	if (h->ms >= 10)
+		_sprintf(out, " %ums", h->ms);
+}
+
+// Logs the commands recorded since the last dump, several to a line
+static void __history_dump(void)
+{
+	char line[96], entry[40];
+	u32 i = __history_count - __history_logged > USBHIST_SIZE ? __history_count - USBHIST_SIZE : __history_logged;
+	line[0] = 0;
+	for (; i < __history_count; i++)
+	{
+		__history_format(entry, &__history[i % USBHIST_SIZE]);
+		if (line[0] && strlen(line) + strlen(entry) + 3 > 80)
+		{
+			ReplayLog("usb: cmds %s", line);
+			line[0] = 0;
+		}
+		_sprintf(line + strlen(line), "%s%s", line[0] ? " | " : "", entry);
+	}
+	if (line[0])
+		ReplayLog("usb: cmds %s", line);
+	__history_logged = __history_count;
+}
+
 static s32 __send_cbw(important_storage_data *dev, u8 lun, u32 len, u8 flags, const u8 *cb, u8 cbLen)
 {
 	s32 retval = USBSTORAGE_OK;
@@ -260,7 +341,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 	u8 ep = write ? dev->ep_out : dev->ep_in;
 	s8 retries = USBSTORAGE_CYCLE_RETRIES + 1;
 	int resets = 0;
-	const char *stage;
+	u8 stage;
 
 	do
 	{
@@ -271,10 +352,11 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		if(retval == USBSTORAGE_ETIMEDOUT)
 			break;
 
-		stage = "CBW";
+		u32 start = read32(HW_TIMER);
+		stage = 1;
 		retval = __send_cbw(dev, lun, len, (write ? CBW_OUT:CBW_IN), cb, cbLen);
 		if (retval >= 0)
-			stage = "data";
+			stage = 2;
 
 		while(_len > 0 && retval >= 0)
 		{
@@ -309,12 +391,29 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 
 		if (retval >= 0)
 		{
-			stage = "CSW";
+			stage = 3;
 			retval = __read_csw(dev, &status, NULL);
 		}
 
+		usb_history_entry *h = __history_add(cb[0]);
+		u32 ms = (read32(HW_TIMER) - start) / TICKS_PER_MS;
+		h->ms = ms > 0xFFFF ? 0xFFFF : ms;
+		h->stage = retval < 0 ? stage : 0;
+		h->err = retval < 0 ? retval : 0;
+		h->status = retval < 0 ? 0 : status;
+		h->residue = remaining;
+		if (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10)
+		{
+			h->arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
+			h->count = cb[7] << 8 | cb[8];
+		}
+		else
+			h->arg = len;
+
 		if (retval < 0) {
-			USBLOG("usb: op %02X %s failed: %d", cb[0], stage, retval);
+			if (__failed_commands < USBLOG_DETAIL_LIMIT)
+				__history_dump();
+			USBLOG("usb: op %02X %s failed: %d", cb[0], __stage_names[stage], retval);
 			// Clear device halts only if a plain reset already failed to help
 			bool clear_device_halt = resets++ > 0;
 			s32 reset = __usbstorage_reset(dev, clear_device_halt);
@@ -355,6 +454,10 @@ static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_hal
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
 	s32 retval = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USBSTORAGE_RESET, 0, dev->interface, 0, NULL);
 
+	usb_history_entry *h = __history_add(USBHIST_RESET);
+	h->clear = clear_device_halt;
+	h->err = retval;
+
 	udelay(60*1000);
 	if (clear_device_halt)
 	{
@@ -378,6 +481,7 @@ static s32 __request_sense(important_storage_data *dev, u8 lun, u16 *additional)
 	s32 retval = __cycle(dev, lun, sense, SCSI_SENSE_REPLY_SIZE, cmd, sizeof(cmd), 0, NULL, NULL);
 	if (retval < 0)
 		return retval;
+	__history[(__history_count - 1) % USBHIST_SIZE].arg = (u32)(sense[2] & 0xF) << 16 | sense[12] << 8 | sense[13];
 	if (additional != NULL)
 		*additional = (sense[12] << 8) | sense[13];
 	return sense[2] & 0xF;
@@ -415,6 +519,8 @@ static s32 __command(important_storage_data *dev, u8 *buffer, u32 len, u8 *cb, u
 		if (status != CSW_STATUS_FAILED)
 		{
 			// Phase error: the device needs reset recovery (bulk-only 6.7)
+			if (__failed_commands < USBLOG_DETAIL_LIMIT)
+				__history_dump();
 			USBLOG("usb: op %02X CSW status %d", cb[0], status);
 			retval = USBSTORAGE_ESTATUS;
 			__usbstorage_reset(dev, false);
@@ -423,6 +529,8 @@ static s32 __command(important_storage_data *dev, u8 *buffer, u32 len, u8 *cb, u
 
 		u16 additional = 0;
 		retval = __request_sense(dev, dev->lun, &additional);
+		if (__failed_commands < USBLOG_DETAIL_LIMIT)
+			__history_dump();
 		USBLOG("usb: op %02X failed, sense %d asc/ascq %04X", cb[0], retval, additional);
 		if (retval == SCSI_SENSE_RECOVERED_ERROR)
 			return USBSTORAGE_OK;
@@ -653,6 +761,26 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 			retval = __cycle(dev, lun, inquiry_response, 36, inquiry_cmd, 6, 0, NULL, NULL);
 			if (retval >= 0) break;
 		}
+		if (retval >= 0)
+		{
+			// vendor, product and revision are space-padded fixed-width fields
+			char id[3][17];
+			static const u8 offsets[3] = {8, 16, 32}, widths[3] = {8, 16, 4};
+			int f;
+			for (f = 0; f < 3; f++)
+			{
+				int n = widths[f];
+				for (j = 0; j < n; j++)
+				{
+					u8 c = inquiry_response[offsets[f] + j];
+					id[f][j] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+				}
+				while (n > 0 && id[f][n - 1] == ' ')
+					n--;
+				id[f][n] = 0;
+			}
+			ReplayLog("usb: lun %d is %s %s %s", lun, id[0], id[1], id[2]);
+		}
 
 		// see libogc/usbstorage.c: USBStorage_ReadCapacity
 		u8 read_capacity_cmd[10] = {SCSI_READ_CAPACITY, lun << 5, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -792,7 +920,10 @@ bool __has_device_after_change()
 					u8 max_lun = retval >= 0 ? (max_lun_buf[0] & 0xF) : 0;
 					ReplayLog("usb: found %04X:%04X, GET MAX LUN %d (max lun %u)", new_device.vid, new_device.pid, retval, max_lun);
 					__failed_commands = 0;
-					if (__setValidLun(&new_device, max_lun))
+					__history_logged = __history_count;
+					bool valid = __setValidLun(&new_device, max_lun);
+					__history_dump();
+					if (valid)
 					{
 						memcpy(&__mounted_device, &new_device, sizeof(important_storage_data));
 						usb_s_size = __mounted_device.sector_size;

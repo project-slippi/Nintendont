@@ -9,7 +9,7 @@
 #define LOG_PATH "/slippi_replays.log"
 
 // Fixed slots so the Slippi thread never allocates or waits
-#define LOG_SLOTS 32
+#define LOG_SLOTS 48
 #define LOG_LINE_LENGTH 92
 
 // A log left over from earlier sessions is restarted past this size
