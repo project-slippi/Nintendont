@@ -44,7 +44,7 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --volume=${PWD}:/work --workdir=/work nikhilnarayana/devkitpro-slippi:latest make -j7
+          sudo docker run --volume=${PWD}:/work --workdir=/work nikhilnarayana/devkitpro-slippi:7 bash -c "git config --global --add safe.directory /work && make -j7"
       - name: "Package"
         if: success()
         working-directory: ${{ github.workspace }}

@@ -26,7 +26,7 @@ See [README.md](https://github.com/FIX94/Nintendont/blob/master/README.md) for s
 You will need to install part of the devkitPro toolchain to build Nintendont. Visit [the getting started page](https://devkitpro.org/wiki/Getting_Started) and find the instructions for your system. I recommend installing GBA, Wii, and GC packages. GBA is required to get `devkitARM` which isn't provided in the others. You effectively need `devkitARM` `devkitPPC` and `libogc`.
 
 ### Building with Docker
-We maintain a docker image for building on CI which can also be used for building locally without the need to install devkitPro. Simply run `docker run --volume=${PWD}:/work --workdir=/work nikhilnarayana/devkitpro-slippi make` from the root repo directory.
+We maintain a docker image for building on CI which can also be used for building locally without the need to install devkitPro. Simply run `docker run --volume=${PWD}:/work --workdir=/work nikhilnarayana/devkitpro-slippi:7 make` from the root repo directory.
 
 ### Building on Windows
 To build on windows, you need to run the `Incremental Build.bat` file in the Nintendont root.
