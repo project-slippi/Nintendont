@@ -826,6 +826,16 @@ void USBStorage_UpdateRegisters_MainThread(void)
 	}
 }
 
+// Logs the drive the loader handed over at boot, which never goes through
+// __has_device_after_change
+void USBStorage_LogBootDevice(void)
+{
+	if (__mounted)
+		ReplayLog("usb: using %04X:%04X from boot, lun %u, %u sectors of %u bytes",
+			__mounted_device.vid, __mounted_device.pid, __mounted_device.lun,
+			__mounted_device.sector_count, __mounted_device.sector_size);
+}
+
 // Call periodically from only the slippi thread
 bool USBStorage_IsInserted_SlippiThread(void)
 {

@@ -33,5 +33,6 @@ void USBStorage_Shutdown(void);
 
 void USBStorage_UpdateRegisters_MainThread(void);
 bool USBStorage_IsInserted_SlippiThread(void);
+void USBStorage_LogBootDevice(void);
 
 #endif /* __USBSTORAGE_H__ */

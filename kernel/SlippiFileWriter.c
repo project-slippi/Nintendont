@@ -268,6 +268,8 @@ static u32 SlippiHandlerThread(void *arg)
 	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
 	bool mounted = use_usb ? USBStorage_IsInserted_SlippiThread() : true;
+	if (use_usb && mounted)
+		USBStorage_LogBootDevice();
 
 	while (1)
 	{
