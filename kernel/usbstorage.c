@@ -296,10 +296,10 @@ static volatile u32 __inflight_arg;
 static volatile u16 __inflight_count;
 static u32 __stuck_reported_seq = 0;
 
-static void __inflight_command(const u8 *cb, u32 len)
+static void __inflight_command(const u8 *cb, u8 cbLen, u32 len)
 {
 	__inflight_op = cb[0];
-	if (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10)
+	if (cbLen >= 10 && (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10))
 	{
 		__inflight_arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
 		__inflight_count = cb[7] << 8 | cb[8];
@@ -426,7 +426,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 
 		u32 start = read32(HW_TIMER);
 		u32 first_seq = __inflight_seq;
-		__inflight_command(cb, len);
+		__inflight_command(cb, cbLen, len);
 		stage = 1;
 		__inflight_begin(1);
 		retval = __send_cbw(dev, lun, len, (write ? CBW_OUT:CBW_IN), cb, cbLen);
@@ -482,7 +482,7 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		h->err = retval < 0 ? retval : 0;
 		h->status = retval < 0 ? 0 : status;
 		h->residue = remaining;
-		if (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10)
+		if (cbLen >= 10 && (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10))
 		{
 			h->arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
 			h->count = cb[7] << 8 | cb[8];
