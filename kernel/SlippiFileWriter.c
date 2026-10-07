@@ -20,6 +20,10 @@
 
 #define FOOTER_BUFFER_LENGTH 200
 
+// A failed mount is retried every 2 seconds, logged once a minute
+#define MOUNT_RETRY_CYCLES 20
+#define MOUNT_LOG_EVERY 30
+
 static u32 SlippiHandlerThread(void *arg);
 
 // Thread stuff
@@ -125,7 +129,9 @@ FRESULT writeHeader(FIL *file)
 	u8 header[] = {'{', 'U', 3, 'r', 'a', 'w', '[', '$', 'U', '#', 'l', 0, 0, 0, 0};
 
 	u32 wrote;
-	return f_write(file, header, sizeof(header), &wrote);
+	FRESULT res = f_write(file, header, sizeof(header), &wrote);
+	// FatFs reports a full drive as a short write
+	return res == FR_OK && wrote != sizeof(header) ? FR_DENIED : res;
 }
 
 // FatFs latches the first disk error in fp->err and fails every later
@@ -209,6 +215,8 @@ FRESULT completeFile(FIL *file, s32 lastFrame, u32 writtenByteCount)
 
 	u32 wrote;
 	fRes = f_write(file, footer, writePos, &wrote);
+	if (fRes == FR_OK && wrote != writePos)
+		fRes = FR_DENIED; // drive full
 	if (fRes != FR_OK)
 	{
 		dbgprintf("Slippi: failed to write footer, errno: %d\r\n", fRes);
@@ -255,7 +263,8 @@ static u32 SlippiHandlerThread(void *arg)
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
-	bool failedToMount = false;
+	u32 mountFailures = 0;
+	u32 mountWait = 0;
 	bool parkedOpen = false;
 	bool parkedValid = false;
 	s32 parkedLastFrame = 0;
@@ -290,7 +299,8 @@ static u32 SlippiHandlerThread(void *arg)
 					f_mount_char(NULL, "usb:", 1);
 				}
 
-				failedToMount = false;
+				mountFailures = 0;
+				mountWait = 0;
 				currentFileOpen = false;
 				currentFileValid = false;
 				gameEnded = false;
@@ -298,28 +308,42 @@ static u32 SlippiHandlerThread(void *arg)
 				mounted = false;
 				continue;
 			}
-			else if (!mounted && !failedToMount)
+			else if (!mounted)
 			{
+				// A failed mount is retried. It used to be tried once, so a drive
+				// that hit one error here recorded nothing until it was reinserted.
+				if (mountWait > 0)
+				{
+					mountWait--;
+					continue;
+				}
+
+				const char *step = "mounting the drive";
 				FRESULT mountResult = f_mount_char(devices[1], "usb:", 1);
+				if (mountResult == FR_OK)
+				{
+					// Create folder if it doesn't exist yet
+					step = "creating /Slippi";
+					mountResult = f_mkdir_secondary_drive("/Slippi");
+					if (mountResult == FR_EXIST)
+						mountResult = FR_OK;
+				}
 				if (mountResult != FR_OK)
 				{
-					ReplayLog("replay: mounting the drive failed: %d", mountResult);
-
-					// only attempt to mount once, user can retry by re-inserting the device.
-					failedToMount = true;
+					if (mountFailures++ % MOUNT_LOG_EVERY == 0)
+						ReplayLog("replay: %s failed: %d, retrying", step, mountResult);
+					mountWait = MOUNT_RETRY_CYCLES;
 					continue;
 				}
+				if (mountFailures > 0)
+					ReplayLog("replay: mounted after %u failed attempts", mountFailures);
+				mountFailures = 0;
+				writeFailures = 0;
 
-				// Create folder if it doesn't exist yet
-				FRESULT mkdirResult = f_mkdir_secondary_drive("/Slippi");
-				if (mkdirResult != FR_OK && mkdirResult != FR_EXIST)
-				{
-					ReplayLog("replay: creating /Slippi failed: %d", mkdirResult);
-
-					// only attempt to mount once, user can retry by re-inserting the device.
-					failedToMount = true;
-					continue;
-				}
+				// Free space is known without scanning the FAT when FSINFO is valid
+				FATFS *fs = devices[1];
+				if (fs->free_clst <= fs->n_fatent - 2)
+					ReplayLog("replay: %u MB free", (u32)(((u64)fs->free_clst * fs->csize * fs->ssize) >> 20));
 
 				// Go back to the oldest unsaved game whose start is still in the
 				// buffer, so a game survives the drive being bumped out or inserted
@@ -439,12 +463,18 @@ static u32 SlippiHandlerThread(void *arg)
 					currentFileOpen = false;
 				}
 
+				// While creating replays keeps failing, as on a full drive, try
+				// again every 2 seconds instead of every cycle
+				if (writeFailures > 0 && writeFailures++ % MOUNT_RETRY_CYCLES != 0)
+					break;
+
 				dbgprintf("Creating File...\r\n");
 				// Names have one-second resolution, and catching up after a stall can
 				// reach two games in the same second. FA_CREATE_ALWAYS would then
 				// overwrite the first, so keep start times distinct. A retry for the
 				// same game keeps its name so it replaces the failed attempt.
-				if (memReadPos != fileGamePos)
+				bool newGame = memReadPos != fileGamePos;
+				if (newGame)
 				{
 					gameStartTime = GetCurrentTime();
 					if (gameStartTime <= lastGameStartTime)
@@ -457,19 +487,22 @@ static u32 SlippiHandlerThread(void *arg)
 				FRESULT fileOpenResult = f_open_secondary_drive(&currentFile, fileName, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
 				if (fileOpenResult != FR_OK)
 				{
-					ReplayLog("replay: creating %s failed: %d", fileName, fileOpenResult);
+					if (writeFailures++ == 0)
+						ReplayLog("replay: creating %s failed: %d", fileName, fileOpenResult);
 					break;
 				}
 
 				currentFileOpen = true;
 				writtenByteCount = 0;
-				writeFailures = 0;
-				ReplayLog("replay: recording %s", fileName);
+				if (newGame || writeFailures == 0)
+					ReplayLog("replay: recording %s", fileName);
 				
 				FRESULT writeHeaderResult = writeHeader(&currentFile);
 				if (writeHeaderResult != FR_OK)
 				{
-					ReplayLog("replay: writing the header failed: %d", writeHeaderResult);
+					if (writeFailures++ == 0)
+						ReplayLog("replay: writing the header failed: %d%s", writeHeaderResult,
+							writeHeaderResult == FR_DENIED ? " (drive full)" : "");
 					break;
 				}
 
@@ -492,11 +525,15 @@ static u32 SlippiHandlerThread(void *arg)
 			FRESULT writeResult = seekFile(&currentFile, writtenByteCount + 15);
 			if (writeResult == FR_OK)
 				writeResult = f_write(&currentFile, readBuf, reader.lastReadResult.bytesRead, &wrote);
+			// FatFs reports a full drive as a short write
+			if (writeResult == FR_OK && wrote != reader.lastReadResult.bytesRead)
+				writeResult = FR_DENIED;
 			if (writeResult != FR_OK)
 			{
 				// Retried every cycle, so log the first failure and the recovery
 				if (writeFailures++ == 0)
-					ReplayLog("replay: write at byte %u failed: %d", writtenByteCount, writeResult);
+					ReplayLog("replay: write at byte %u failed: %d%s", writtenByteCount, writeResult,
+						writeResult == FR_DENIED ? " (drive full)" : "");
 				break;
 			}
 			else
