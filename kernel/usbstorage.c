@@ -32,6 +32,7 @@ distribution.
 #include "debug.h"
 #include "usbstorage.h"
 #include "usb.h"
+#include "ReplayLog.h"
 
 #define ROUNDDOWN32(v)				(((u32)(v)-0x1f)&~0x1f)
 
@@ -45,6 +46,9 @@ distribution.
 
 #define	CSW_SIZE					13
 #define	CSW_SIGNATURE				0x53425355
+#define	CSW_STATUS_PASSED			0x00
+#define	CSW_STATUS_FAILED			0x01
+#define	CSW_STATUS_PHASE_ERROR		0x02
 
 #define	SCSI_TEST_UNIT_READY		0x00
 #define	SCSI_REQUEST_SENSE			0x03
@@ -53,11 +57,16 @@ distribution.
 #define	SCSI_READ_CAPACITY			0x25
 #define	SCSI_READ_10				0x28
 #define	SCSI_WRITE_10				0x2A
+#define	SCSI_SYNCHRONIZE_CACHE		0x35
 
 #define	SCSI_SENSE_REPLY_SIZE		18
+#define	SCSI_SENSE_NO_SENSE			0x00
+#define	SCSI_SENSE_RECOVERED_ERROR	0x01
 #define	SCSI_SENSE_NOT_READY		0x02
 #define	SCSI_SENSE_MEDIUM_ERROR		0x03
 #define	SCSI_SENSE_HARDWARE_ERROR	0x04
+#define	SCSI_SENSE_ILLEGAL_REQUEST	0x05
+#define	SCSI_SENSE_UNIT_ATTENTION	0x06
 
 #define	USB_CLASS_MASS_STORAGE		0x08
 #define	MASS_STORAGE_RBC_COMMANDS		0x01
@@ -74,6 +83,14 @@ distribution.
 #define	USB_ENDPOINT_BULK			0x02
 
 #define USBSTORAGE_CYCLE_RETRIES	3
+#define USBSTORAGE_COMMAND_RETRIES	3
+// Polls of a drive reporting "becoming ready" at mount, 250 ms apart
+#define USBSTORAGE_READY_ATTEMPTS	20
+
+// Detail is logged for the first failed reads/writes in a run, then one
+// summary line per interval, so a dead drive cannot flood the log
+#define USBLOG_DETAIL_LIMIT			3
+#define USBLOG_SUMMARY_INTERVAL		100
 
 #define INVALID_LUN					-2
 
@@ -180,7 +197,164 @@ static bool __ioctl_running = false;
 static bool __main_thread_dirty = false;
 static bool __slippi_thread_dirty = false;
 
-static s32 __usbstorage_reset(important_storage_data *dev);
+static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt);
+
+static u32 __failed_commands = 0;
+static bool __sync_unsupported = false;	// the drive rejected SYNCHRONIZE CACHE
+#define USBLOG(...) do { if (__failed_commands < USBLOG_DETAIL_LIMIT) ReplayLog(__VA_ARGS__); } while (0)
+
+// Flight recorder: the last USB commands, written to the log when one fails
+// so each failure comes with what led up to it
+#define USBHIST_SIZE				16
+#define USBHIST_RESET				0xFF
+#define TICKS_PER_MS				1898
+
+typedef struct
+{
+	u8 op;			// SCSI opcode, or USBHIST_RESET for reset recovery
+	u8 status;		// CSW status
+	u8 stage;		// where the transfer failed (1 CBW, 2 data, 3 CSW), or 0
+	u8 clear;		// reset recovery sent CLEAR_FEATURE
+	u32 arg;		// first sector for READ/WRITE, sense for REQUEST SENSE, else bytes
+	u16 count;		// sectors for READ/WRITE
+	u16 ms;
+	s32 err;
+	u32 residue;	// bytes the data stage came up short
+} usb_history_entry;
+
+#define USBSTUCK_SECS				5
+
+static const char *const __stage_names[] = {"", "CBW", "data", "CSW", "reset"};
+static usb_history_entry __history[USBHIST_SIZE];
+static u32 __history_count = 0;
+static u32 __history_logged = 0;
+
+static usb_history_entry *__history_add(u8 op)
+{
+	usb_history_entry *h = &__history[__history_count++ % USBHIST_SIZE];
+	memset(h, 0, sizeof(usb_history_entry));
+	h->op = op;
+	return h;
+}
+
+static void __history_format(char *out, const usb_history_entry *h)
+{
+	if (h->op == USBHIST_RESET)
+		_sprintf(out, "reset%s %d", h->clear ? "+clear" : "", h->err);
+	else if (h->op == SCSI_READ_10 || h->op == SCSI_WRITE_10)
+		_sprintf(out, "%02X %X+%u", h->op, h->arg, h->count);
+	else if (h->op == SCSI_REQUEST_SENSE && h->stage == 0)
+		_sprintf(out, "03 sense %X/%04X", h->arg >> 16, h->arg & 0xFFFF);
+	else
+		_sprintf(out, "%02X %ub", h->op, h->arg);
+	out += strlen(out);
+
+	if (h->op != USBHIST_RESET)
+	{
+		if (h->stage)
+			_sprintf(out, " %s %d", __stage_names[h->stage], h->err);
+		else if (h->status)
+			_sprintf(out, " st%u", h->status);
+		else if (h->residue)
+			_sprintf(out, " short %u", h->residue);
+		else
+			_sprintf(out, " ok");
+		out += strlen(out);
+	}
+	if (h->ms >= 10)
+		_sprintf(out, " %ums", h->ms);
+}
+
+// Logs the commands recorded since the last dump, several to a line
+static void __history_dump_with(void (*log)(const char *fmt, ...))
+{
+	char line[96], entry[40];
+	u32 i = __history_count - __history_logged > USBHIST_SIZE ? __history_count - USBHIST_SIZE : __history_logged;
+	line[0] = 0;
+	for (; i < __history_count; i++)
+	{
+		__history_format(entry, &__history[i % USBHIST_SIZE]);
+		if (line[0] && strlen(line) + strlen(entry) + 3 > 80)
+		{
+			log("usb: cmds %s", line);
+			line[0] = 0;
+		}
+		_sprintf(line + strlen(line), "%s%s", line[0] ? " | " : "", entry);
+	}
+	if (line[0])
+		log("usb: cmds %s", line);
+	__history_logged = __history_count;
+}
+
+static void __history_dump(void)
+{
+	__history_dump_with(ReplayLog);
+}
+
+// The IOS transfer in progress, so the main thread can report one that never
+// returns: the driver has no timeouts, so a frozen drive blocks the Slippi
+// thread with nothing logged.
+static volatile u32 __inflight_start = 0;	// HW_TIMER at the start, 0 when idle
+static volatile u32 __inflight_seq = 0;
+static volatile u8 __inflight_op, __inflight_stage;
+static volatile u32 __inflight_arg;
+static volatile u16 __inflight_count;
+static u32 __stuck_reported_seq = 0;
+
+static void __inflight_command(const u8 *cb, u8 cbLen, u32 len)
+{
+	__inflight_op = cb[0];
+	if (cbLen >= 10 && (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10))
+	{
+		__inflight_arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
+		__inflight_count = cb[7] << 8 | cb[8];
+	}
+	else
+	{
+		__inflight_arg = len;
+		__inflight_count = 0;
+	}
+}
+
+static void __inflight_begin(u8 stage)
+{
+	__inflight_stage = stage;
+	__inflight_seq++;
+	__inflight_start = read32(HW_TIMER) | 1;
+}
+
+static void __inflight_end(void)
+{
+	__inflight_start = 0;
+}
+
+// Main thread
+bool USBStorage_StuckReportDue(void)
+{
+	u32 start = __inflight_start;
+	return start != 0 && __inflight_seq != __stuck_reported_seq &&
+		read32(HW_TIMER) - start >= USBSTUCK_SECS * 1000 * TICKS_PER_MS;
+}
+
+// Main thread, only while no disc read is in flight. The Slippi thread is
+// blocked in IOS, so its log queue and command history are not changing.
+void USBStorage_ReportStuck_MainThread(void)
+{
+	if (!USBStorage_StuckReportDue())
+		return; /* it returned in the meantime */
+	__stuck_reported_seq = __inflight_seq;
+	u32 secs = (read32(HW_TIMER) - __inflight_start) / (1000 * TICKS_PER_MS);
+	if (__inflight_op == USBHIST_RESET)
+		ReplayLogMainThread("usb: reset recovery has not returned after %u s", secs);
+	else if (__inflight_count)
+		ReplayLogMainThread("usb: op %02X %X+%u has not returned from the %s stage after %u s",
+			__inflight_op, __inflight_arg, __inflight_count, __stage_names[__inflight_stage], secs);
+	else
+		ReplayLogMainThread("usb: op %02X %ub has not returned from the %s stage after %u s",
+			__inflight_op, __inflight_arg, __stage_names[__inflight_stage], secs);
+	__history_logged = __history_count > USBHIST_SIZE ? __history_count - USBHIST_SIZE : 0;
+	__history_dump_with(ReplayLogMainThread);
+}
 
 static s32 __send_cbw(important_storage_data *dev, u8 lun, u32 len, u8 flags, const u8 *cb, u8 cbLen)
 {
@@ -239,10 +413,12 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 	s32 retval = USBSTORAGE_OK;
 
 	u8 status=0;
-	u32 dataResidue = 0;
+	u32 remaining = 0;
 	u32 max_size = MAX_TRANSFER_SIZE_V5;
 	u8 ep = write ? dev->ep_out : dev->ep_in;
 	s8 retries = USBSTORAGE_CYCLE_RETRIES + 1;
+	int resets = 0;
+	u8 stage;
 
 	do
 	{
@@ -253,12 +429,21 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 		if(retval == USBSTORAGE_ETIMEDOUT)
 			break;
 
+		u32 start = read32(HW_TIMER);
+		u32 first_seq = __inflight_seq;
+		__inflight_command(cb, cbLen, len);
+		stage = 1;
+		__inflight_begin(1);
 		retval = __send_cbw(dev, lun, len, (write ? CBW_OUT:CBW_IN), cb, cbLen);
+		__inflight_end();
+		if (retval >= 0)
+			stage = 2;
 
 		while(_len > 0 && retval >= 0)
 		{
 			u32 thisLen = _len > max_size ? max_size : _len;
 
+			__inflight_begin(2);
 			if ((u32)_buffer&0x1F || !((u32)_buffer&0x10000000))
 			{
 				if(write) memcpy(transferbuffer, _buffer, thisLen);
@@ -267,40 +452,186 @@ static s32 __cycle(important_storage_data *dev, u8 lun, u8 *buffer, u32 len, u8 
 			}
 			else
 				retval = USB_WriteBlkMsg(dev->usb_fd, ep, thisLen, _buffer);
+			__inflight_end();
 			if (retval == thisLen)
 			{
 				_len -= retval;
 				_buffer += retval;
 			}
-			else if (retval != USBSTORAGE_ETIMEDOUT)
+			else if (!write && retval >= 0)
+			{
+				// A short packet ends the data stage early (bulk-only 6.7.2).
+				// The device still sends a CSW; the shortfall becomes the residue.
+				_len -= retval;
+				retval = USBSTORAGE_OK;
+				break;
+			}
+			else if (retval >= 0)
 				retval = USBSTORAGE_EDATARESIDUE;
+			// otherwise keep the IOS error, which the log reports
 		}
+		remaining = _len;
 
 		if (retval >= 0)
-			retval = __read_csw(dev, &status, &dataResidue);
+		{
+			stage = 3;
+			__inflight_begin(3);
+			retval = __read_csw(dev, &status, NULL);
+			__inflight_end();
+		}
+
+		usb_history_entry *h = __history_add(cb[0]);
+		u32 ms = (read32(HW_TIMER) - start) / TICKS_PER_MS;
+		h->ms = ms > 0xFFFF ? 0xFFFF : ms;
+		h->stage = retval < 0 ? stage : 0;
+		h->err = retval < 0 ? retval : 0;
+		h->status = retval < 0 ? 0 : status;
+		h->residue = remaining;
+		if (cbLen >= 10 && (cb[0] == SCSI_READ_10 || cb[0] == SCSI_WRITE_10))
+		{
+			h->arg = (u32)cb[2] << 24 | cb[3] << 16 | cb[4] << 8 | cb[5];
+			h->count = cb[7] << 8 | cb[8];
+		}
+		else
+			h->arg = len;
+
+		if (__stuck_reported_seq > first_seq)
+			ReplayLog("usb: the stuck op %02X returned after %u ms: %d", cb[0], ms, retval);
 
 		if (retval < 0) {
-			if (__usbstorage_reset(dev) == USBSTORAGE_ETIMEDOUT)
+			if (__failed_commands < USBLOG_DETAIL_LIMIT)
+				__history_dump();
+			USBLOG("usb: op %02X %s failed: %d", cb[0], __stage_names[stage], retval);
+			// Clear device halts only if a plain reset already failed to help
+			bool clear_device_halt = resets++ > 0;
+			s32 reset = __usbstorage_reset(dev, clear_device_halt);
+			USBLOG("usb: reset recovery%s: %d", clear_device_halt ? " with clear halt" : "", reset);
+			if (reset == USBSTORAGE_ETIMEDOUT)
 				retval = USBSTORAGE_ETIMEDOUT;
 		}
 	} while (retval < 0 && retries > 0);
 
 	if(_status != NULL)
 		*_status = status;
+	// Report what the host measured: some devices put bogus residues in the CSW
 	if(_dataResidue != NULL)
-		*_dataResidue = dataResidue;
+		*_dataResidue = remaining;
 
 	return retval;
 }
 
-static s32 __usbstorage_reset(important_storage_data *dev)
+// USB_ClearHalt is IOS's CANCELENDPOINT, which only cancels the host's
+// transfers. A device that stalled an endpoint keeps it halted until it
+// receives CLEAR_FEATURE(ENDPOINT_HALT), and the class reset alone does not
+// clear it (bulk-only 3.1), so without this every later command fails.
+//
+// CLEAR_FEATURE also resets the device's data toggle. If IOS does not reset
+// its own toggle to match, the next packet is dropped, so this is only sent
+// once a reset without it has failed (see __cycle).
+static void __clear_halt(important_storage_data *dev, u8 ep)
+{
+	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_ENDPOINT;
+	s32 feature = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USB_REQ_CLEARFEATURE, USB_FEATURE_ENDPOINT_HALT, ep, 0, NULL);
+	s32 cancel = USB_ClearHalt(dev->usb_fd, ep);
+	USBLOG("usb: clear halt ep %02X: feature %d, cancel %d", ep, feature, cancel);
+}
+
+// Reset recovery, bulk-only 5.3.4
+static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt)
 {
 	u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
+	__inflight_op = USBHIST_RESET;
+	__inflight_begin(4);
 	s32 retval = USB_WriteCtrlMsg(dev->usb_fd, bmRequestType, USBSTORAGE_RESET, 0, dev->interface, 0, NULL);
+	__inflight_end();
+
+	usb_history_entry *h = __history_add(USBHIST_RESET);
+	h->clear = clear_device_halt;
+	h->err = retval;
 
 	udelay(60*1000);
-	USB_ClearHalt(dev->usb_fd, dev->ep_in);udelay(10000); //from http://www.usb.org/developers/devclass_docs/usbmassbulk_10.pdf
-	USB_ClearHalt(dev->usb_fd, dev->ep_out);udelay(10000);
+	if (clear_device_halt)
+	{
+		__clear_halt(dev, dev->ep_in);udelay(10000);
+		__clear_halt(dev, dev->ep_out);udelay(10000);
+	}
+	else
+	{
+		USB_ClearHalt(dev->usb_fd, dev->ep_in);udelay(10000); //from http://www.usb.org/developers/devclass_docs/usbmassbulk_10.pdf
+		USB_ClearHalt(dev->usb_fd, dev->ep_out);udelay(10000);
+	}
+	return retval;
+}
+
+// Returns the sense key, or a negative error. additional gets ASC << 8 | ASCQ.
+static s32 __request_sense(important_storage_data *dev, u8 lun, u16 *additional)
+{
+	u8 cmd[] = {SCSI_REQUEST_SENSE, lun << 5, 0, 0, SCSI_SENSE_REPLY_SIZE, 0};
+	u8 sense[SCSI_SENSE_REPLY_SIZE];
+	memset(sense, 0, SCSI_SENSE_REPLY_SIZE);
+	s32 retval = __cycle(dev, lun, sense, SCSI_SENSE_REPLY_SIZE, cmd, sizeof(cmd), 0, NULL, NULL);
+	if (retval < 0)
+		return retval;
+	__history[(__history_count - 1) % USBHIST_SIZE].arg = (u32)(sense[2] & 0xF) << 16 | sense[12] << 8 | sense[13];
+	if (additional != NULL)
+		*additional = (sense[12] << 8) | sense[13];
+	return sense[2] & 0xF;
+}
+
+// Runs a command and checks the CSW status, which used to be ignored: a write
+// the device rejected counted as written. A failed command is followed by
+// REQUEST SENSE, as on other hosts, and retried when the device is only busy
+// or reporting a unit attention.
+static s32 __command(important_storage_data *dev, u8 *buffer, u32 len, u8 *cb, u8 cbLen, u8 write)
+{
+	s32 retval = USBSTORAGE_ESTATUS;
+	int attempt;
+
+	for (attempt = 0; attempt < USBSTORAGE_COMMAND_RETRIES; attempt++)
+	{
+		u8 status = 0;
+		u32 dataResidue = 0;
+		retval = __cycle(dev, dev->lun, buffer, len, cb, cbLen, write, &status, &dataResidue);
+		if (retval < 0)
+			return retval;
+
+		if (status == CSW_STATUS_PASSED)
+		{
+			if (dataResidue != 0)
+			{
+				USBLOG("usb: op %02X passed %u bytes short", cb[0], dataResidue);
+				return USBSTORAGE_EDATARESIDUE;
+			}
+			if (attempt > 0)
+				USBLOG("usb: op %02X passed on attempt %d", cb[0], attempt + 1);
+			return USBSTORAGE_OK;
+		}
+
+		if (status != CSW_STATUS_FAILED)
+		{
+			// Phase error: the device needs reset recovery (bulk-only 6.7)
+			if (__failed_commands < USBLOG_DETAIL_LIMIT)
+				__history_dump();
+			USBLOG("usb: op %02X CSW status %d", cb[0], status);
+			retval = USBSTORAGE_ESTATUS;
+			__usbstorage_reset(dev, false);
+			continue;
+		}
+
+		u16 additional = 0;
+		retval = __request_sense(dev, dev->lun, &additional);
+		if (__failed_commands < USBLOG_DETAIL_LIMIT)
+			__history_dump();
+		USBLOG("usb: op %02X failed, sense %d asc/ascq %04X", cb[0], retval, additional);
+		if (retval == SCSI_SENSE_RECOVERED_ERROR)
+			return USBSTORAGE_OK;
+		if (retval != SCSI_SENSE_NO_SENSE && retval != SCSI_SENSE_NOT_READY && retval != SCSI_SENSE_UNIT_ATTENTION)
+			return USBSTORAGE_ESTATUS;
+
+		retval = USBSTORAGE_ESTATUS;
+		udelay(100*1000);
+	}
+
 	return retval;
 }
 
@@ -373,12 +704,29 @@ s32 USBStorage_Startup(bool hotswap)
 	return 0;
 }
 
+// Logs the first failures in a run, periodic summaries, and the recovery
+static bool __track_result(const char *op, u32 sector, u32 numSectors, s32 retval)
+{
+	if (retval >= 0)
+	{
+		if (__failed_commands > 0)
+			ReplayLog("usb: %s works again after %u failed commands", op, __failed_commands);
+		__failed_commands = 0;
+		return true;
+	}
+
+	USBLOG("usb: %s of %u sectors at %u failed: %d", op, numSectors, sector, retval);
+	__failed_commands++;
+	if (__failed_commands % USBLOG_SUMMARY_INTERVAL == 0)
+		ReplayLog("usb: %u failed commands in a row", __failed_commands);
+	return false;
+}
+
 bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 {
 	if (!__mounted)
 		return false;
 
-	u8 status = 0;
 	s32 retval;
 	u8 cmd[] = {
 		SCSI_READ_10,
@@ -393,11 +741,9 @@ bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, buffer,  numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 0, &status, NULL);
-	if(retval > 0 && status != 0)
-		retval = USBSTORAGE_ESTATUS;
+	retval = __command(&__mounted_device, buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 0);
 
-	return retval >= 0;
+	return __track_result("read", sector, numSectors, retval);
 }
 
 bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
@@ -405,7 +751,6 @@ bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 	if (!__mounted)
 		return false;
 
-	u8 status = 0;
 	s32 retval;
 	u8 cmd[] = {
 		SCSI_WRITE_10,
@@ -420,11 +765,9 @@ bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 		0
 	};
 
-	retval = __cycle(&__mounted_device, __mounted_device.lun, (u8*)buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 1, &status, NULL);
-	if(retval > 0 && status != 0)
-		retval = USBSTORAGE_ESTATUS;
+	retval = __command(&__mounted_device, (u8*)buffer, numSectors * __mounted_device.sector_size, cmd, sizeof(cmd), 1);
 
-	return retval >= 0;
+	return __track_result("write", sector, numSectors, retval);
 }
 
 void USBStorage_Close()
@@ -491,15 +834,36 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 		if (retval < 0)
 			continue;
 
-		u8 sense_cmd[] = {SCSI_REQUEST_SENSE, lun << 5, 0, 0, SCSI_SENSE_REPLY_SIZE, 0};
-		u8 sense_response[SCSI_SENSE_REPLY_SIZE];
-		memset(sense_response, 0, SCSI_SENSE_REPLY_SIZE);
-		retval = __cycle(dev, lun, sense_response, SCSI_SENSE_REPLY_SIZE, sense_cmd, 6, 0, NULL, NULL);
-		if (retval < 0)
+		// A drive can report "becoming ready" for a few seconds after it is
+		// plugged in. It used to be skipped until reinserted; wait for it like
+		// other hosts do. A unit attention is retried at once.
+		u16 additional = 0;
+		int attempt, waits = 0;
+		for (attempt = 0; ; attempt++)
+		{
+			retval = __request_sense(dev, lun, &additional);
+			bool becoming_ready = retval == SCSI_SENSE_NOT_READY && (additional >> 8) == 0x04;
+			if ((!becoming_ready && retval != SCSI_SENSE_UNIT_ATTENTION) || attempt >= USBSTORAGE_READY_ATTEMPTS)
+				break;
+			if (becoming_ready)
+			{
+				udelay(250*1000);
+				waits++;
+			}
+			s32 ready = __cycle(dev, lun, NULL, 0, test_cmd, 6, 0, NULL, NULL);
+			if (ready < 0)
+			{
+				retval = ready;
+				break;
+			}
+		}
+		if (waits > 0)
+			ReplayLog("usb: lun %d waited %d ms to become ready", lun, waits * 250);
+		if (retval < 0 || retval == SCSI_SENSE_NOT_READY || retval == SCSI_SENSE_MEDIUM_ERROR || retval == SCSI_SENSE_HARDWARE_ERROR)
+		{
+			ReplayLog("usb: lun %d not ready, sense %d asc/ascq %04X", lun, retval, additional);
 			continue;
-		u8 sense_key = sense_response[2] & 0xF;
-		if (sense_key == SCSI_SENSE_NOT_READY || sense_key == SCSI_SENSE_MEDIUM_ERROR || sense_key == SCSI_SENSE_HARDWARE_ERROR)
-			continue;
+		}
 
 		// see libogc/usbstorage.c: USBStorage_Inquiry
 		u8 inquiry_cmd[] = {SCSI_INQUIRY, lun << 5,0,0,36,0};
@@ -511,6 +875,26 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 			retval = __cycle(dev, lun, inquiry_response, 36, inquiry_cmd, 6, 0, NULL, NULL);
 			if (retval >= 0) break;
 		}
+		if (retval >= 0)
+		{
+			// vendor, product and revision are space-padded fixed-width fields
+			char id[3][17];
+			static const u8 offsets[3] = {8, 16, 32}, widths[3] = {8, 16, 4};
+			int f;
+			for (f = 0; f < 3; f++)
+			{
+				int n = widths[f];
+				for (j = 0; j < n; j++)
+				{
+					u8 c = inquiry_response[offsets[f] + j];
+					id[f][j] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+				}
+				while (n > 0 && id[f][n - 1] == ' ')
+					n--;
+				id[f][n] = 0;
+			}
+			ReplayLog("usb: lun %d is %s %s %s", lun, id[0], id[1], id[2]);
+		}
 
 		// see libogc/usbstorage.c: USBStorage_ReadCapacity
 		u8 read_capacity_cmd[10] = {SCSI_READ_CAPACITY, lun << 5, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -520,11 +904,13 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 
 		if (retval >= 0 && read_capacity_response[0] > 0 && read_capacity_response[1] >= 512)
 		{
-			dev->sector_count = read_capacity_response[0];
+			// READ CAPACITY returns the last LBA, not the count
+			dev->sector_count = read_capacity_response[0] + 1;
 			dev->sector_size = read_capacity_response[1];
 			dev->lun = lun;
 			return true;
-		}				
+		}
+		ReplayLog("usb: lun %d capacity unreadable: %d", lun, retval);
 	}
 	return false;
 }
@@ -537,6 +923,8 @@ bool __has_device_after_change()
 
 	if (num_attached_devices == 0)
 	{
+		if (__mounted)
+			ReplayLog("usb: drive removed");
 		__mounted = false;
 		return false;
 	}
@@ -551,6 +939,7 @@ bool __has_device_after_change()
 				return true;
 			}
 		}
+		ReplayLog("usb: drive removed");
 		__mounted = false;
 	}
 
@@ -635,15 +1024,27 @@ bool __has_device_after_change()
 					u8 bmRequestType = USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_DEVICE;
 					retval = USB_WriteCtrlMsg(new_device.usb_fd, bmRequestType, USB_REQ_SETCONFIG, ucd->bConfigurationValue, 0, 0, NULL);
 
+					// The buffer must be 32-byte aligned or USB_ReadCtrlMsg returns
+					// IPC_EINVAL without sending anything. Single-LUN devices may
+					// stall this request (bulk-only 3.2), which means LUN 0.
 					bmRequestType = USB_CTRLTYPE_DIR_DEVICE2HOST | USB_CTRLTYPE_TYPE_CLASS | USB_CTRLTYPE_REC_INTERFACE;
-					u8 max_lun = 0;
-					retval = USB_ReadCtrlMsg(new_device.usb_fd, bmRequestType, USBSTORAGE_GET_MAX_LUN, 0, new_device.interface, 1, &max_lun);
-					if (__setValidLun(&new_device, max_lun))
+					u8 max_lun_buf[32] ALIGNED(32);
+					max_lun_buf[0] = 0;
+					retval = USB_ReadCtrlMsg(new_device.usb_fd, bmRequestType, USBSTORAGE_GET_MAX_LUN, 0, new_device.interface, 1, max_lun_buf);
+					u8 max_lun = retval >= 0 ? (max_lun_buf[0] & 0xF) : 0;
+					ReplayLog("usb: found %04X:%04X, GET MAX LUN %d (max lun %u)", new_device.vid, new_device.pid, retval, max_lun);
+					__failed_commands = 0;
+					__history_logged = __history_count;
+					bool valid = __setValidLun(&new_device, max_lun);
+					__history_dump();
+					if (valid)
 					{
 						memcpy(&__mounted_device, &new_device, sizeof(important_storage_data));
 						usb_s_size = __mounted_device.sector_size;
 						usb_s_cnt = __mounted_device.sector_count;
 						__mounted = true;
+						__sync_unsupported = false;
+						ReplayLog("usb: using lun %u, %u sectors of %u bytes", __mounted_device.lun, __mounted_device.sector_count, __mounted_device.sector_size);
 
 						udelay(10000);
 						return true;
@@ -669,6 +1070,41 @@ void USBStorage_UpdateRegisters_MainThread(void)
 		IOS_IoctlAsync(ven_fd, USBV5_IOCTL_GETDEVICECHANGE, NULL, 0, AttachedDevices, 0x180, venchangequeue, venchangemsg);
 		__ioctl_running = true;
 	}
+}
+
+// Asks the drive to write its cache to flash. FatFs calls this when a file is
+// closed, so each replay reaches the flash before the Wii is turned off or the
+// drive is pulled. A drive that rejects the command is not asked again.
+void USBStorage_Flush(void)
+{
+	if (!__mounted || __sync_unsupported)
+		return;
+
+	u8 cmd[10] = {SCSI_SYNCHRONIZE_CACHE, __mounted_device.lun << 5, 0, 0, 0, 0, 0, 0, 0, 0};
+	u8 status = 0;
+	s32 retval = __cycle(&__mounted_device, __mounted_device.lun, NULL, 0, cmd, sizeof(cmd), 0, &status, NULL);
+	if (retval >= 0 && status == CSW_STATUS_FAILED)
+	{
+		u16 additional = 0;
+		retval = __request_sense(&__mounted_device, __mounted_device.lun, &additional);
+		if (retval != SCSI_SENSE_ILLEGAL_REQUEST)
+			return;
+	}
+	else if (retval >= 0)
+		return;
+
+	__sync_unsupported = true;
+	ReplayLog("usb: drive does not take SYNCHRONIZE CACHE (%d), not sending it again", retval);
+}
+
+// Logs the drive the loader handed over at boot, which never goes through
+// __has_device_after_change
+void USBStorage_LogBootDevice(void)
+{
+	if (__mounted)
+		ReplayLog("usb: using %04X:%04X from boot, lun %u, %u sectors of %u bytes",
+			__mounted_device.vid, __mounted_device.pid, __mounted_device.lun,
+			__mounted_device.sector_count, __mounted_device.sector_size);
 }
 
 // Call periodically from only the slippi thread

@@ -33,5 +33,9 @@ void USBStorage_Shutdown(void);
 
 void USBStorage_UpdateRegisters_MainThread(void);
 bool USBStorage_IsInserted_SlippiThread(void);
+void USBStorage_LogBootDevice(void);
+void USBStorage_Flush(void);
+bool USBStorage_StuckReportDue(void);
+void USBStorage_ReportStuck_MainThread(void);
 
 #endif /* __USBSTORAGE_H__ */

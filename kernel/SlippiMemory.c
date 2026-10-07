@@ -24,6 +24,12 @@ volatile u64 SlipMemCursor = 0x0000000000000000;
 // Global state: the current state of recording
 struct recordingState gameState ALIGNED(32);
 
+// Where recent games started, so the file writer can go back to a game that
+// began before the drive was reinserted
+#define GAME_START_HISTORY 8
+static u64 gameStarts[GAME_START_HISTORY];
+static u32 gameStartCount = 0;
+
 u16 getPayloadSize(SlpGameReader *reader, u8 command);
 void setPayloadSizes(SlpGameReader *reader, u32 readPos);
 void resetMetadata(SlpGameReader *reader);
@@ -66,6 +72,7 @@ void SlippiMemoryWrite(const u8 *buf, u32 len)
 	u8 command = SlipMem[normalizedCursor];
 	if (command == SLP_CMD_RECEIVE_COMMANDS)
 	{
+		gameStarts[gameStartCount++ % GAME_START_HISTORY] = SlipMemCursor;
 		gameState.baseCursor = SlipMemCursor;
 		gameState.inGame = true;
 		dbgprintf("Match %08x started at baseCursor=0x%08x\r\n", 
@@ -187,6 +194,24 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
  * Returns the current position of the global write cursor.
  */
 u64 SlippiRestoreReadPos() { return SlipMemCursor; }
+
+/* SlippiOldestGameStartFrom()
+ * The start of the oldest game at or after pos whose data is still entirely in
+ * the buffer, or the write cursor if there is none.
+ */
+u64 SlippiOldestGameStartFrom(u64 pos)
+{
+	u64 cursor = SlipMemCursor;
+	u64 oldest = cursor;
+	u32 i;
+	for (i = 0; i < GAME_START_HISTORY && i < gameStartCount; i++)
+	{
+		u64 start = gameStarts[i];
+		if (start >= pos && start < oldest && cursor - start < SLIPMEM_SIZE)
+			oldest = start;
+	}
+	return oldest;
+}
 
 
 /* resetMetadata()
