@@ -57,6 +57,7 @@ distribution.
 #define	SCSI_READ_CAPACITY			0x25
 #define	SCSI_READ_10				0x28
 #define	SCSI_WRITE_10				0x2A
+#define	SCSI_SYNCHRONIZE_CACHE		0x35
 
 #define	SCSI_SENSE_REPLY_SIZE		18
 #define	SCSI_SENSE_NO_SENSE			0x00
@@ -64,6 +65,7 @@ distribution.
 #define	SCSI_SENSE_NOT_READY		0x02
 #define	SCSI_SENSE_MEDIUM_ERROR		0x03
 #define	SCSI_SENSE_HARDWARE_ERROR	0x04
+#define	SCSI_SENSE_ILLEGAL_REQUEST	0x05
 #define	SCSI_SENSE_UNIT_ATTENTION	0x06
 
 #define	USB_CLASS_MASS_STORAGE		0x08
@@ -82,6 +84,8 @@ distribution.
 
 #define USBSTORAGE_CYCLE_RETRIES	3
 #define USBSTORAGE_COMMAND_RETRIES	3
+// Polls of a drive reporting "becoming ready" at mount, 250 ms apart
+#define USBSTORAGE_READY_ATTEMPTS	20
 
 // Detail is logged for the first failed reads/writes in a run, then one
 // summary line per interval, so a dead drive cannot flood the log
@@ -196,6 +200,7 @@ static bool __slippi_thread_dirty = false;
 static s32 __usbstorage_reset(important_storage_data *dev, bool clear_device_halt);
 
 static u32 __failed_commands = 0;
+static bool __sync_unsupported = false;	// the drive rejected SYNCHRONIZE CACHE
 #define USBLOG(...) do { if (__failed_commands < USBLOG_DETAIL_LIMIT) ReplayLog(__VA_ARGS__); } while (0)
 
 // Flight recorder: the last USB commands, written to the log when one fails
@@ -829,8 +834,31 @@ static bool __setValidLun(important_storage_data *dev, int max_lun)
 		if (retval < 0)
 			continue;
 
+		// A drive can report "becoming ready" for a few seconds after it is
+		// plugged in. It used to be skipped until reinserted; wait for it like
+		// other hosts do. A unit attention is retried at once.
 		u16 additional = 0;
-		retval = __request_sense(dev, lun, &additional);
+		int attempt, waits = 0;
+		for (attempt = 0; ; attempt++)
+		{
+			retval = __request_sense(dev, lun, &additional);
+			bool becoming_ready = retval == SCSI_SENSE_NOT_READY && (additional >> 8) == 0x04;
+			if ((!becoming_ready && retval != SCSI_SENSE_UNIT_ATTENTION) || attempt >= USBSTORAGE_READY_ATTEMPTS)
+				break;
+			if (becoming_ready)
+			{
+				udelay(250*1000);
+				waits++;
+			}
+			s32 ready = __cycle(dev, lun, NULL, 0, test_cmd, 6, 0, NULL, NULL);
+			if (ready < 0)
+			{
+				retval = ready;
+				break;
+			}
+		}
+		if (waits > 0)
+			ReplayLog("usb: lun %d waited %d ms to become ready", lun, waits * 250);
 		if (retval < 0 || retval == SCSI_SENSE_NOT_READY || retval == SCSI_SENSE_MEDIUM_ERROR || retval == SCSI_SENSE_HARDWARE_ERROR)
 		{
 			ReplayLog("usb: lun %d not ready, sense %d asc/ascq %04X", lun, retval, additional);
@@ -1015,6 +1043,7 @@ bool __has_device_after_change()
 						usb_s_size = __mounted_device.sector_size;
 						usb_s_cnt = __mounted_device.sector_count;
 						__mounted = true;
+						__sync_unsupported = false;
 						ReplayLog("usb: using lun %u, %u sectors of %u bytes", __mounted_device.lun, __mounted_device.sector_count, __mounted_device.sector_size);
 
 						udelay(10000);
@@ -1041,6 +1070,31 @@ void USBStorage_UpdateRegisters_MainThread(void)
 		IOS_IoctlAsync(ven_fd, USBV5_IOCTL_GETDEVICECHANGE, NULL, 0, AttachedDevices, 0x180, venchangequeue, venchangemsg);
 		__ioctl_running = true;
 	}
+}
+
+// Asks the drive to write its cache to flash. FatFs calls this when a file is
+// closed, so each replay reaches the flash before the Wii is turned off or the
+// drive is pulled. A drive that rejects the command is not asked again.
+void USBStorage_Flush(void)
+{
+	if (!__mounted || __sync_unsupported)
+		return;
+
+	u8 cmd[10] = {SCSI_SYNCHRONIZE_CACHE, __mounted_device.lun << 5, 0, 0, 0, 0, 0, 0, 0, 0};
+	u8 status = 0;
+	s32 retval = __cycle(&__mounted_device, __mounted_device.lun, NULL, 0, cmd, sizeof(cmd), 0, &status, NULL);
+	if (retval >= 0 && status == CSW_STATUS_FAILED)
+	{
+		u16 additional = 0;
+		retval = __request_sense(&__mounted_device, __mounted_device.lun, &additional);
+		if (retval != SCSI_SENSE_ILLEGAL_REQUEST)
+			return;
+	}
+	else if (retval >= 0)
+		return;
+
+	__sync_unsupported = true;
+	ReplayLog("usb: drive does not take SYNCHRONIZE CACHE (%d), not sending it again", retval);
 }
 
 // Logs the drive the loader handed over at boot, which never goes through
