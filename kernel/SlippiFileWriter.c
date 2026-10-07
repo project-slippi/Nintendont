@@ -267,8 +267,12 @@ static u32 SlippiHandlerThread(void *arg)
 	bool currentFileOpen = false;
 	bool currentFileValid = false;
 	const bool use_usb = ConfigGetUseUSB() != 1;
-	bool mounted = use_usb ? USBStorage_IsInserted_SlippiThread() : true;
-	if (use_usb && mounted)
+	// A drive present at boot was mounted by main.c, but it goes through the
+	// same setup as one inserted later. Without that, a drive with no /Slippi
+	// folder fails every f_open with FR_NO_PATH and records nothing until it
+	// is reinserted.
+	bool mounted = !use_usb;
+	if (use_usb && USBStorage_IsInserted_SlippiThread())
 		USBStorage_LogBootDevice();
 
 	while (1)
