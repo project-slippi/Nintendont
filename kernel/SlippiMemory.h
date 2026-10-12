@@ -62,4 +62,7 @@ SlpMemError SlippiMemoryRead(SlpGameReader *reader, u8 *buf, u32 bufLen, u64 rea
 // Will restore a read position 
 u64 SlippiRestoreReadPos();
 
+// Start of the oldest game at or after pos still fully in the buffer, else the write cursor
+u64 SlippiOldestGameStartFrom(u64 pos);
+
 #endif

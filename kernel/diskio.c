@@ -220,6 +220,11 @@ DRESULT disk_ioctl (
 		else if (pdrv == DEV_USB)
 			*(WORD*)buff = usb_s_size;
 	}
+	else if (cmd == CTRL_SYNC && pdrv == DEV_USB)
+	{
+		// FatFs syncs when a file is closed; push the drive's cache to flash
+		USBStorage_Flush();
+	}
 
 	return RES_OK;
 }
