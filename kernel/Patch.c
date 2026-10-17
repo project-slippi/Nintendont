@@ -3389,23 +3389,13 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 		dbgprintf("Patch:Applying toggleables...\r\n");
 		
 		// Iterate through all melee codes and add the codes that have been configured
-		int i, j;
+		int i;
 		for (i = 0; i < codeConfig->lineItemCount; i++) {
 			const MeleeCodeLineItem *lineItem = codeConfig->items[i];
 			u32 currentValue = ConfigGetMeleeCodeValue(lineItem->identifier);
 
 			// Attempt to fetch config for selected option
-			const MeleeCodeOption *selectedOption = NULL;
-			for (j = 0; j < lineItem->optionCount; j++) {
-				const MeleeCodeOption *option = lineItem->options[j];
-				if (option->value != currentValue) {
-					continue;
-				}
-
-				// If selected value is equal to this option, set it to selected option
-				selectedOption = option;
-				break;
-			}
+			const MeleeCodeOption *selectedOption = GetMeleeCodeOption(lineItem, currentValue);
 
 			if (!selectedOption || selectedOption->codeLen == 0) {
 				// Option not found or no code required for this option, do nothing
@@ -3416,6 +3406,20 @@ void DoPatches( char *Buffer, u32 Length, u32 DiscOffset )
 			memcpy((void*)gct_cursor, selectedOption->code, selectedOption->codeLen);
 			sync_after_write((void*)gct_cursor, selectedOption->codeLen);
 			gct_cursor += selectedOption->codeLen;
+
+			// The visual buffer amount is the lines between SI polls in XYNTSC[11]
+			// (0x80402CCC), which sets where the frame starts. Two polls per frame,
+			// as Melee uses.
+			u32 pollLines = lineItem->identifier == MELEE_CODES_LAG_REDUCTION_OPTION_ID ?
+				GetLagReductionPollLines(currentValue) : 0;
+			if (pollLines) {
+				dbgprintf("Patch:Lag reduction %d/100F, %d lines between polls\r\n",
+					GetLagReductionHundredths(currentValue), pollLines);
+				write32(gct_cursor, 0x04402CCC);
+				write32(gct_cursor + 4, (pollLines << 16) | 0x0200);
+				sync_after_write((void*)gct_cursor, 8);
+				gct_cursor += 8;
+			}
 		}
 
 		dbgprintf("Patch:Apply GCT footer 0x%08x\r\n", gct_cursor);

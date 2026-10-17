@@ -386,6 +386,31 @@ static bool IsDiscImageValid(const char *filename, int discNumber, gameinfo *gi)
 	return ret;
 }
 
+/**
+ * Get the index of the option a saved value selects, or -1 if none does.
+ */
+static int GetMeleeCodeOptionIndex(const MeleeCodeLineItem *lineItem, u32 value)
+{
+	const MeleeCodeOption *option = GetMeleeCodeOption(lineItem, value);
+
+	int i;
+	for (i = 0; i < lineItem->optionCount; i++)
+	{
+		if (lineItem->options[i] == option)
+			return i;
+	}
+	return -1;
+}
+
+/**
+ * Save a value for a code line item and select its option.
+ */
+static void SetMeleeCodeValue(int index, const MeleeCodeLineItem *lineItem, u32 value)
+{
+	ncfg->MeleeCodeOptions[lineItem->identifier] = value;
+	meleeCodeSelectionIndices[index] = GetMeleeCodeOptionIndex(lineItem, value);
+}
+
 void initMeleeCodeSelections()
 {
 	const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
@@ -397,17 +422,11 @@ void initMeleeCodeSelections()
 		const MeleeCodeLineItem *lineItem = codeConfig->items[i];
 
 		bool valueFound = false;
-		for (j = 0; j < lineItem->optionCount; j++)
+		int index = GetMeleeCodeOptionIndex(lineItem, ncfg->MeleeCodeOptions[lineItem->identifier]);
+		if (index >= 0)
 		{
-			const MeleeCodeOption *option = lineItem->options[j];
-
-			u32 currentValue = ncfg->MeleeCodeOptions[lineItem->identifier];
-			if (currentValue != option->value)
-				continue;
-
-			meleeCodeSelectionIndices[i] = j;
+			meleeCodeSelectionIndices[i] = index;
 			valueFound = true;
-			break;
 		}
 
 		if (!valueFound)
@@ -1073,7 +1092,28 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		ctx->redraw = true;
 	}
 
+	int lagStep = 0;
 	if (FPAD_Left_Repeat(ctx))
+		lagStep = -1;
+	else if (FPAD_Right_Repeat(ctx))
+		lagStep = 1;
+
+	if (lagStep != 0 && ctx->pages.selected == PAGE_SLIPPI_SETTINGS)
+	{
+		// Left/Right adjust the lag reduction amount
+		const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
+		int index = ctx->settings.posX - NIN_SLIPPI_DYNAMIC_CODES_START;
+		if (index >= 0 && index < codeConfig->lineItemCount &&
+			codeConfig->items[index]->identifier == MELEE_CODES_LAG_REDUCTION_OPTION_ID)
+		{
+			const MeleeCodeLineItem *item = codeConfig->items[index];
+			SetMeleeCodeValue(index, item, StepLagReductionValue(ncfg->MeleeCodeOptions[item->identifier], lagStep));
+			ctx->saveSettings = true;
+			ctx->redraw = true;
+		}
+	}
+
+	if (lagStep < 0)
 	{
 		if (ctx->pages.selected == PAGE_SETTINGS)
 		{
@@ -1107,7 +1147,7 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			}
 		}
 	}
-	else if (FPAD_Right_Repeat(ctx))
+	else if (lagStep > 0)
 	{
 		if (ctx->pages.selected == PAGE_SETTINGS)
 		{
@@ -1269,6 +1309,11 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 				}
 
 				const MeleeCodeLineItem *item = codeConfig->items[index];
+
+				if (item->identifier == MELEE_CODES_LAG_REDUCTION_OPTION_ID) {
+					SetMeleeCodeValue(index, item, NextLagReductionPreset(ncfg->MeleeCodeOptions[item->identifier]));
+					break;
+				}
 
 				meleeCodeSelectionIndices[index]++;
 				if (meleeCodeSelectionIndices[index] >= item->optionCount) {
@@ -1451,8 +1496,18 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 				const MeleeCodeLineItem *item = codeConfig->items[i];
 				const MeleeCodeOption *option = item->options[meleeCodeSelectionIndices[i]];
 
-				PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
-						"%-15s:%s", item->name, option->name);
+				int lagHundredths = item->identifier == MELEE_CODES_LAG_REDUCTION_OPTION_ID ?
+					GetLagReductionHundredths(ncfg->MeleeCodeOptions[item->identifier]) : -1;
+				if (lagHundredths >= 0)
+				{
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
+							"%-15s:PDF + %d.%02dF", item->name, lagHundredths / 100, lagHundredths % 100);
+				}
+				else
+				{
+					PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
+							"%-15s:%s", item->name, option->name);
+				}
 				ListLoopIndex++;
 		}
 	}

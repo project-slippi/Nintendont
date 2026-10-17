@@ -209,8 +209,10 @@ const MeleeCodeOption lagReductionOptionPd = {
 	g_lag_pd,
 };
 
+// Stands for every amount of the visual buffer code. The amount is saved in
+// the config value and applied by the kernel (see GetLagReductionPollLines).
 const MeleeCodeOption lagReductionOptionPdVb = {
-	3,
+	MELEE_CODES_LAG_VB_VALUE,
 	"PDF + 1/2F",
 	g_lag_pdhalfvb_size,
 	g_lag_pdhalfvb,
@@ -230,11 +232,15 @@ static const char *lagReductionDescription[] = {
 	"    inputs are polled consistently.",
 	"    Average 4.17ms reduction",
 	"",
-	"  [PDF + 1/2F]",
-	"    Removes 1/2 frame of lag.",
-	"    Average 12.50ms reduction",
-	"    THIS IS ONLY FOR MONITORS,",
-	"    480p is forcibly enabled.",
+	"  [PDF + 0.05F to 0.95F]",
+	"    Also removes the chosen amount",
+	"    of lag. 1F is 16.68ms, so",
+	"    0.50F averages 12.50ms total.",
+	"    High values may drop frames.",
+	"    Not for SD CRTs. Forces 480p.",
+	"",
+	"  A: Off, PDF, 0.25, 0.50, 0.75",
+	"  Left/Right: adjust by 0.01",
 	NULL,
 };
 
@@ -484,4 +490,83 @@ const MeleeCodeConfig mcconfig = {
 
 const MeleeCodeConfig *GetMeleeCodeConfig() {
 	return &mcconfig;
+}
+
+const MeleeCodeOption *GetMeleeCodeOption(const MeleeCodeLineItem *item, unsigned int value) {
+	if (item->identifier == MELEE_CODES_LAG_REDUCTION_OPTION_ID && GetLagReductionHundredths(value) >= 0)
+		value = MELEE_CODES_LAG_VB_VALUE;
+
+	int i;
+	for (i = 0; i < item->optionCount; i++) {
+		if (item->options[i]->value == (int)value)
+			return item->options[i];
+	}
+	return NULL;
+}
+
+/***************************************
+ * Lag Reduction Amount
+ ***************************************/
+static const int lagReductionPresets[] = { 25, 50, 75 };
+
+// Returns the visual buffer amount in hundredths of a frame, or -1 when the
+// value is Off, PDF or unknown.
+int GetLagReductionHundredths(unsigned int value) {
+	if (value == MELEE_CODES_LAG_VB_VALUE)
+		return 50;
+	if (value >= MELEE_CODES_LAG_VB_VALUE_BASE + MELEE_CODES_LAG_VB_MIN &&
+		value <= MELEE_CODES_LAG_VB_VALUE_BASE + MELEE_CODES_LAG_VB_MAX)
+		return value - MELEE_CODES_LAG_VB_VALUE_BASE;
+	return -1;
+}
+
+unsigned int GetLagReductionValue(int hundredths) {
+	if (hundredths == 50)
+		return MELEE_CODES_LAG_VB_VALUE;
+	return MELEE_CODES_LAG_VB_VALUE_BASE + hundredths;
+}
+
+// Left/Right walk Off, PDF, then the visual buffer amounts one step at a time.
+unsigned int StepLagReductionValue(unsigned int value, int direction) {
+	int hundredths = GetLagReductionHundredths(value);
+	if (hundredths < 0) {
+		if (direction > 0)
+			return value == MELEE_CODES_LAG_PD_VALUE ?
+				GetLagReductionValue(MELEE_CODES_LAG_VB_MIN) : MELEE_CODES_LAG_PD_VALUE;
+		return MELEE_CODES_LAG_OFF_VALUE;
+	}
+
+	hundredths += direction;
+	if (hundredths < MELEE_CODES_LAG_VB_MIN)
+		return MELEE_CODES_LAG_PD_VALUE;
+	if (hundredths > MELEE_CODES_LAG_VB_MAX)
+		hundredths = MELEE_CODES_LAG_VB_MAX;
+	return GetLagReductionValue(hundredths);
+}
+
+// A cycles Off, PDF, then the presets, and wraps back to Off.
+unsigned int NextLagReductionPreset(unsigned int value) {
+	int hundredths = GetLagReductionHundredths(value);
+	if (hundredths < 0)
+		return value == MELEE_CODES_LAG_PD_VALUE ?
+			GetLagReductionValue(lagReductionPresets[0]) : MELEE_CODES_LAG_PD_VALUE;
+
+	unsigned int i;
+	for (i = 0; i < sizeof(lagReductionPresets) / sizeof(lagReductionPresets[0]); i++) {
+		if (lagReductionPresets[i] > hundredths)
+			return GetLagReductionValue(lagReductionPresets[i]);
+	}
+	return MELEE_CODES_LAG_OFF_VALUE;
+}
+
+// The visual buffer code starts each frame on the second SI poll after
+// retrace. Melee polls at sampling rate 11, and that rate's entry in the SDK's
+// XYNTSC table holds the lines between polls, doubled in 480p, so a frame is
+// 262.5 of them. Melee's own entry is 131, which is the 1/2F code as released.
+// Returns 0 when the value isn't the visual buffer code.
+unsigned int GetLagReductionPollLines(unsigned int value) {
+	int hundredths = GetLagReductionHundredths(value);
+	if (hundredths < 0)
+		return 0;
+	return (hundredths * 525 + 100) / 200;
 }
